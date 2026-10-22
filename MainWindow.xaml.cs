@@ -93,6 +93,7 @@ public partial class MainWindow : Window
         UpdateLocalization();
         UpdateStats();
         UpdateHistoryStats();
+        StateChanged += MainWindow_StateChanged;
 
         // Background automatic check for updates from GitHub (silent, non-blocking)
         Loaded += (s, e) =>
@@ -465,6 +466,7 @@ public partial class MainWindow : Window
         HistoryActionsPanel.Visibility = Visibility.Visible;
 
         UpdateHistoryStats();
+        StateChanged += MainWindow_StateChanged;
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -476,6 +478,20 @@ public partial class MainWindow : Window
         else
         {
             DragMove();
+        }
+    }
+
+    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            IconMaximizePath.Data = (System.Windows.Media.Geometry)FindResource("IconRestore");
+            BtnMaximize.ToolTip = LocalizationManager.Get("BtnRestoreTooltip") ?? "Восстановить окно";
+        }
+        else
+        {
+            IconMaximizePath.Data = (System.Windows.Media.Geometry)FindResource("IconMaximize");
+            BtnMaximize.ToolTip = LocalizationManager.Get("BtnMaximizeTooltip") ?? "Развернуть на весь экран";
         }
     }
 
@@ -1065,6 +1081,7 @@ public partial class MainWindow : Window
             totalSw.Stop();
             UpdateStats();
             UpdateHistoryStats();
+        StateChanged += MainWindow_StateChanged;
 
             BtnDecrypt.IsEnabled = true;
             BtnAddFiles.IsEnabled = true;
@@ -1174,6 +1191,7 @@ public partial class MainWindow : Window
             HistoryManager.Remove(h);
         }
         UpdateHistoryStats();
+        StateChanged += MainWindow_StateChanged;
         TxtStatusLog.Text = $"Удалено из истории: {selected.Count}. Всего: {HistoryManager.Items.Count}.";
     }
 
@@ -1192,6 +1210,7 @@ public partial class MainWindow : Window
         {
             HistoryManager.Clear();
             UpdateHistoryStats();
+        StateChanged += MainWindow_StateChanged;
             TxtStatusLog.Text = "История операций очищена";
         }
     }

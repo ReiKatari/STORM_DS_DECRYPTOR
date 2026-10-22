@@ -47,22 +47,37 @@
                 </StackPanel>
 
                 <Button Grid.Column="1" x:Name="BtnClose" Click="BtnClose_Click"
-                        Width="28" Height="28" Background="Transparent" BorderThickness="0"
-                        Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Cursor="Hand">
+                        Width="30" Height="30" Background="Transparent" BorderThickness="0"
+                        Foreground="{DynamicResource ThemeTextSecondary}" Cursor="Hand" Focusable="False"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Button.RenderTransform>
+                        <ScaleTransform ScaleX="1" ScaleY="1" />
+                    </Button.RenderTransform>
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" SnapsToDevicePixels="True">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                     <Setter TargetName="bd" Property="Background" Value="#25FF3344" />
-                                     <Setter Property="Foreground" Value="#FF4455" />
+                                     <Setter TargetName="bd" Property="Background" Value="#EF4444" />
+                                     <Setter Property="Foreground" Value="#FFFFFF" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                     <Setter TargetName="bd" Property="Background" Value="#DC2626" />
+                                     <Setter Property="RenderTransform">
+                                         <Setter.Value>
+                                             <ScaleTransform ScaleX="0.9" ScaleY="0.9" />
+                                         </Setter.Value>
+                                     </Setter>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
-                    ✕
+                    <Path Data="M 0.5 0.5 L 9 9 M 9 0.5 L 0.5 9"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                          StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          SnapsToDevicePixels="True" VerticalAlignment="Center" HorizontalAlignment="Center" />
                 </Button>
             </Grid>
 
