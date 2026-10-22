@@ -53,6 +53,12 @@
 ---
 
 ## **Благодарности**
-Полный список используемых библиотек, открытых алгоритмов и благодарностей авторам представлен в файле [CREDITS.md](CREDITS.md).
+
+- **SharpCompress (Adam Hathcock и сообщество)** — за создание универсальной высокопроизводительной библиотеки для потокового чтения и распаковки архивов `.zip`, `.7z`, `.rar`, `.tar`, `.gz`, `.bz2`, `.xz` без внешних зависимостей ([GitHub](https://github.com/adamhathcock/sharpcompress), лицензия MIT).
+- **Microsoft .NET Cryptography** — за аппаратно-ускоренные криптографические примитивы `Aes` (AES-128-ECB и AES-CTR) для сверхбыстрой поблочной дешифровки исполняемых разделов Modcrypt 1 и Modcrypt 2 (лицензия MIT).
+- **Arisotura (StapleButter), Rafael Rivera, Nadia Holmquist, JesseTG и команда melonDS** — за фундаментальные исследования архитектуры Nintendo DS и Nintendo DSi, алгоритмы генерации ключей DSi Modcrypt (нормализация KeyX на основе названия картриджа и GameCode, таблица констант `key_const`, 42-битный циклический сдвиг ROL16, сопоставление хэшей `0x350`, `0x328`, `0x364`) и эталонный эмулятор melonDS ([GitHub](https://github.com/melonDS-emu/melonDS), лицензия GPLv3).
+- **Prof. 9, WinterMute, Martin Korth (GBATEK)** — за документацию структуры заголовков Nintendo DS/DSi, расчет контрольных сумм CRC16 заголовка (`0x15E`), карту разделов Modcrypt (`0x220`..`0x22C`) и открытые исследования утилит `dsi-decrypt` и `twl-modcrypt`.
+- **Kokke (tiny-AES-c)** — за открытую эталонную реализацию AES для верификации вычислений CTR-счетчика и поблочного XOR ([GitHub](https://github.com/kokke/tiny-AES-c), Public Domain / Unlicense).
+- **STORM TEAM** — за разработку архитектуры STORM AURORA FLUID, нативную интеграцию DWM без GPU-дедлоков (`BAD_TSG`), многопоточный пакетный движок детекции образов по CRC16-сигнатурам и единый установщик STORM INSTALLER.
 
 *Copyright © 2026 STORM TEAM. Все права защищены.*
