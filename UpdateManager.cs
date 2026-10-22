@@ -9,8 +9,23 @@ namespace StormDsiDecryptor;
 
 public static class UpdateManager
 {
-    public static readonly Version CurrentVersion = new(1, 1, 9);
-    public const string CurrentVersionString = "1.1.9";
+    public static Version CurrentVersion
+    {
+        get
+        {
+            var v = typeof(UpdateManager).Assembly.GetName().Version;
+            return v != null ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(1, 2, 1);
+        }
+    }
+
+    public static string CurrentVersionString
+    {
+        get
+        {
+            var v = CurrentVersion;
+            return $"{v.Major}.{v.Minor}.{v.Build}";
+        }
+    }
     public const string GitHubRepo = "ReiKatari/STORM_DS_DESCRYPTOR";
 
     public static async Task CheckForUpdatesAsync(Window? owner, bool silent = true)

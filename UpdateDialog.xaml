@@ -100,10 +100,10 @@
                         <TextBlock x:Name="TxtHeaderBanner" Text="Доступна новая версия программы!" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal">
                             <TextBlock x:Name="LblCurrent" Text="Текущая версия:" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,6,0" />
-                            <TextBlock x:Name="TxtCurrentVer" Text="1.1.9" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,14,0" />
+                            <TextBlock x:Name="TxtCurrentVer" Text="1.2.1" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,14,0" />
                             <TextBlock Text="➔" FontSize="12" Foreground="{DynamicResource ThemeAccent}" Margin="0,0,14,0" />
                             <TextBlock x:Name="LblNew" Text="Новая версия:" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,6,0" />
-                            <TextBlock x:Name="TxtNewVer" Text="1.2.0" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" />
+                            <TextBlock x:Name="TxtNewVer" Text="1.2.1" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" />
                             <TextBlock x:Name="TxtFileSize" Text=" (~140 МБ)" FontSize="11.5" Foreground="{DynamicResource ThemeTextSecondary}" Margin="6,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
@@ -140,9 +140,9 @@
 
             <!-- Dialog Actions -->
             <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="BtnLater" Content="Позже" Width="110" Height="36" Margin="0,0,10,0"
+                <Button x:Name="BtnLater" Content="Позже" MinWidth="100" Height="36" Margin="0,0,10,0" Padding="14,0"
                         Style="{StaticResource StormButton}" Click="BtnLater_Click" />
-                <Button x:Name="BtnUpdate" Content="⚡ Обновить сейчас" Width="170" Height="36"
+                <Button x:Name="BtnUpdate" Content="Обновить" MinWidth="130" Height="36" Padding="16,0"
                         Style="{StaticResource StormHeroButton}" Click="BtnUpdate_Click" IsDefault="True" />
             </StackPanel>
         </Grid>

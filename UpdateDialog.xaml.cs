@@ -32,7 +32,7 @@ public partial class UpdateDialog : Window
         LblCurrent.Text = LocalizationManager.Get("UpdateCurrentVer") ?? "Текущая версия:";
         LblNew.Text = LocalizationManager.Get("UpdateNewVer") ?? "Новая версия:";
         LblChangelog.Text = LocalizationManager.Get("UpdateChangelog") ?? "Список изменений:";
-        BtnUpdate.Content = LocalizationManager.Get("UpdateNow") ?? "⚡ Обновить сейчас";
+        BtnUpdate.Content = LocalizationManager.Get("UpdateNow") ?? "Обновить";
         BtnLater.Content = LocalizationManager.Get("UpdateLater") ?? "Позже";
         TxtProgressStatus.Text = LocalizationManager.Get("UpdateDownloading") ?? "Загрузка обновления...";
     }
