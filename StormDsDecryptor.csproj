@@ -7,14 +7,14 @@
     <RootNamespace>StormDsiDecryptor</RootNamespace>
     <AssemblyName>STORM DS DECRYPTOR</AssemblyName>
     <AssemblyTitle>STORM DS DECRYPTOR</AssemblyTitle>
-    <Version>1.3.0</Version>
-    <AssemblyVersion>1.3.0.0</AssemblyVersion>
-    <FileVersion>1.3.0.0</FileVersion>
+    <Version>1.3.1</Version>
+    <AssemblyVersion>1.3.1.0</AssemblyVersion>
+    <FileVersion>1.3.1.0</FileVersion>
     <Authors>STORM TEAM</Authors>
     <Company>STORM TEAM</Company>
     <Product>STORM DS DECRYPTOR</Product>
-    <Title>STORM DS DECRYPTOR 1.3.0</Title>
-    <Description>Сверхбыстрая утилита расшифровки и инспекции образов для Nintendo DS, DSi и DSiWare</Description>
+    <Title>STORM DS DECRYPTOR</Title>
+    <Description>STORM DS DECRYPTOR</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <Platforms>x86;x64;ARM64</Platforms>

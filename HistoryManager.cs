@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace StormDsDecryptor;
 
@@ -61,9 +62,33 @@ public static class HistoryManager
                     var list = JsonSerializer.Deserialize<List<HistoryItem>>(json, JsonOptions);
                     if (list != null)
                     {
+                        bool updatedAny = false;
                         foreach (var item in list.OrderByDescending(x => x.ProcessedAt))
                         {
+                            if (item.BannerIconPng == null || item.BannerIconPng.Length == 0)
+                            {
+                                try
+                                {
+                                    string probePath = File.Exists(item.OutPath) ? item.OutPath : (File.Exists(item.FilePath) ? item.FilePath : "");
+                                    if (!string.IsNullOrEmpty(probePath))
+                                    {
+                                        var rom = DsiDecryptorEngine.InspectFile(probePath);
+                                        if (rom.BannerIconPng != null && rom.BannerIconPng.Length > 0)
+                                        {
+                                            item.BannerIconPng = rom.BannerIconPng;
+                                            if (!string.IsNullOrWhiteSpace(rom.GameTitle))
+                                                item.GameTitle = rom.GameTitle;
+                                            updatedAny = true;
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
                             Items.Add(item);
+                        }
+                        if (updatedAny)
+                        {
+                            Save();
                         }
                     }
                 }
@@ -100,8 +125,8 @@ public static class HistoryManager
             try
             {
                 var existing = Items.FirstOrDefault(x =>
-                    x.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(x.GameCode) && x.GameCode != "-" && x.GameCode.Equals(item.GameCode, StringComparison.OrdinalIgnoreCase)));
+                    (!string.IsNullOrEmpty(x.FilePath) && x.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(x.FileName) && x.FileName.Equals(item.FileName, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(x.GameCode) && x.GameCode.Equals(item.GameCode, StringComparison.OrdinalIgnoreCase)));
                 if (existing != null)
                 {
                     Items.Remove(existing);

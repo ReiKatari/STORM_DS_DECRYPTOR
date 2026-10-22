@@ -44,10 +44,10 @@ public static class ArchiveManager
                     if (entry.Length < 0x200) continue;
                     using var stream = entry.Open();
                     byte[] header = new byte[0x400];
-                    int read = stream.Read(header, 0, 0x400);
+                    int read = NdsBannerParser.ReadUpTo(stream, header, 0, 0x400);
                     if (read >= 0x160 && DsiDecryptorEngine.IsRomHeader(header))
                     {
-                        var entryInfo = InspectHeader(header, entry.Length, archivePath, stream);
+                        var entryInfo = InspectHeader(header, read, entry.Length, archivePath, stream);
                         results.Add(new ArchiveRomEntry
                         {
                             ArchivePath = archivePath,
@@ -77,10 +77,10 @@ public static class ArchiveManager
                 if (entry.IsDirectory || entry.Size < 0x200) continue;
                 using var stream = entry.OpenEntryStream();
                 byte[] header = new byte[0x400];
-                int read = stream.Read(header, 0, 0x400);
+                int read = NdsBannerParser.ReadUpTo(stream, header, 0, 0x400);
                 if (read >= 0x160 && DsiDecryptorEngine.IsRomHeader(header))
                 {
-                    var entryInfo = InspectHeader(header, entry.Size, archivePath, stream);
+                    var entryInfo = InspectHeader(header, read, entry.Size, archivePath, stream);
                     results.Add(new ArchiveRomEntry
                     {
                         ArchivePath = archivePath,
@@ -104,8 +104,6 @@ public static class ArchiveManager
     {
         if (list.Count <= 1) return list;
 
-        // If multiple entries have the same GameCode (e.g. 00000002 and 00000003 in Mario vs DK),
-        // keep the highest content/revision entry (highest EntryName or largest size)
         return list
             .GroupBy(r => r.RomInfo.GameCode)
             .Select(g => g.OrderByDescending(r => r.EntryName).First())
@@ -117,8 +115,6 @@ public static class ArchiveManager
         string archiveBase = Path.GetFileNameWithoutExtension(archivePath);
         string entryExt = Path.GetExtension(entryName).ToLowerInvariant();
 
-        // If entry is numeric or generic (e.g. 00000000, 00000001) or doesn't have an .nds/.dsi/.app extension,
-        // use the clean archive name: "Pictobits - Art Style Series (USA).nds"
         if (string.IsNullOrEmpty(entryExt) || entryName.All(char.IsDigit) || entryExt is not (".nds" or ".dsi" or ".app"))
         {
             return $"{archiveBase}.nds";
@@ -127,7 +123,7 @@ public static class ArchiveManager
         return Path.GetFileName(entryName);
     }
 
-    private static RomInfo InspectHeader(byte[] header, long fileSize, string archivePath, Stream? stream = null)
+    private static RomInfo InspectHeader(byte[] header, int bytesAlreadyRead, long fileSize, string archivePath, Stream? stream = null)
     {
         var info = new RomInfo
         {
@@ -139,24 +135,23 @@ public static class ArchiveManager
         info.GameTitle = System.Text.Encoding.ASCII.GetString(header, 0, 12).Trim((char)0);
         info.GameCode = System.Text.Encoding.ASCII.GetString(header, 0x0C, 4);
 
-        // Try extracting banner info from stream if provided
         if (stream != null)
         {
             try
             {
                 uint bannerOffset = BitConverter.ToUInt32(header, 0x68);
-                if (bannerOffset != 0 && bannerOffset + 0x840 <= fileSize)
+                if (bannerOffset >= (uint)bytesAlreadyRead && bannerOffset + 0x240 <= fileSize)
                 {
                     if (stream.CanSeek)
                     {
                         info.Banner = NdsBannerParser.Parse(stream, bannerOffset);
                     }
-                    else if (bannerOffset <= 4 * 1024 * 1024)
+                    else if (bannerOffset <= 128 * 1024 * 1024)
                     {
-                        long skip = bannerOffset - 0x400;
+                        long skip = bannerOffset - bytesAlreadyRead;
                         if (skip > 0)
                         {
-                            byte[] discard = new byte[8192];
+                            byte[] discard = new byte[32768];
                             long rem = skip;
                             while (rem > 0)
                             {
@@ -166,12 +161,16 @@ public static class ArchiveManager
                                 rem -= r;
                             }
                         }
-                        byte[] bannerData = new byte[0x840];
-                        int bRead = stream.Read(bannerData, 0, 0x840);
+                        int maxBannerLen = (int)Math.Min(0x23C0, fileSize - bannerOffset);
+                        byte[] bannerData = new byte[maxBannerLen];
+                        int bRead = NdsBannerParser.ReadUpTo(stream, bannerData, 0, maxBannerLen);
                         if (bRead >= 0x240)
                         {
-                            using var bms = new MemoryStream(bannerData);
-                            info.Banner = NdsBannerParser.Parse(bms, 0);
+                            if (bRead < maxBannerLen)
+                            {
+                                Array.Resize(ref bannerData, bRead);
+                            }
+                            info.Banner = NdsBannerParser.ParseFromBuffer(bannerData);
                         }
                     }
                     if (info.Banner != null && !string.IsNullOrWhiteSpace(info.Banner.BestTitle))
@@ -248,7 +247,6 @@ public static class ArchiveManager
         byte[] rom = ExtractRomBuffer(archivePath, entryName);
         bool res = DsiDecryptorEngine.DecryptRomBuffer(rom);
         if (!res) return false;
-
         if (!DsiDecryptorEngine.ValidateDecryptedRom(rom)) return false;
 
         string? dir = Path.GetDirectoryName(outputPath);
@@ -259,6 +257,12 @@ public static class ArchiveManager
         try
         {
             File.WriteAllBytes(tempFile, rom);
+            var fi = new FileInfo(tempFile);
+            if (fi.Length != rom.Length)
+            {
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+                return false;
+            }
             if (File.Exists(outputPath)) File.Delete(outputPath);
             File.Move(tempFile, outputPath);
             return true;

@@ -77,7 +77,7 @@ namespace StormUniversal.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM DS DECRYPTOR";
-        private const string AppVersion = "1.3.0";
+        private const string AppVersion = "1.3.1";
         private const string AppFolderName = "STORM DS DECRYPTOR";
         private const string ExeName = "STORM DS DECRYPTOR.exe";
         private const string IcoName = "AppIcon.ico";

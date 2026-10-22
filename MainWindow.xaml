@@ -6,27 +6,29 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="using:StormDsDecryptor"
-    Title="STORM DS DECRYPTOR 1.3.0"
+    Title="STORM DS DECRYPTOR 1.3.1"
     mc:Ignorable="d">
 
     <Page x:Name="RootPage"
           Background="{StaticResource BgPrimaryBrush}"
-          FontFamily="{StaticResource AppFontFamily}">
+          FontFamily="{StaticResource AppFontFamily}"
+          AllowDrop="True">
     <Grid x:Name="RootGrid"
           Background="{StaticResource BgPrimaryBrush}"
           AllowDrop="True"
+          Loaded="RootGrid_Loaded"
+          SizeChanged="RootGrid_SizeChanged"
           DragOver="RootGrid_DragOver"
           Drop="RootGrid_Drop"
           KeyDown="RootGrid_KeyDown">
 
         <Grid.Resources>
-            <!-- Stretch ListView Items with zero default margin/padding -->
             <Style x:Key="TableListViewItemStyle" TargetType="ListViewItem">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Margin" Value="0" />
-                <Setter Property="MinHeight" Value="48" />
+                <Setter Property="MinHeight" Value="52" />
             </Style>
         </Grid.Resources>
 
@@ -37,7 +39,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ==================== ROW 0: CUSTOM WINDOW TITLE BAR (Rule 10 & 12) ==================== -->
+        <!-- ==================== ROW 0: CUSTOM WINDOW TITLE BAR (Rule 11 & 13) ==================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource BgSecondaryBrush}"
                 BorderBrush="{StaticResource BorderSubtleBrush}"
@@ -53,59 +55,65 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                         <Image x:Name="ImgTitleBarIcon" Width="20" Height="20" VerticalAlignment="Center" />
                         <TextBlock x:Name="TxtWindowTitle"
-                                   Text="STORM DS DECRYPTOR 1.3.0"
+                                   Text="STORM DS DECRYPTOR 1.3.1"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   CharacterSpacing="35"
+                                   CharacterSpacing="25"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Grid>
 
                 <!-- Custom Vector Window Caption Buttons (Minimize, Maximize/Restore, Close-to-Tray) -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="0,0,4,0" VerticalAlignment="Center">
                     <Button x:Name="BtnWinMinimize"
                             Click="BtnMinimize_Click"
-                            Width="46" Height="38"
+                            Width="42" Height="30"
                             Background="Transparent"
                             BorderThickness="0"
-                            CornerRadius="0"
+                            CornerRadius="6"
                             Padding="0">
-                        <Path Data="M 0,5 L 10,5"
+                        <Path Data="M 0,5 L 11,5"
                               Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.5"
-                              Width="10" Height="10"
+                              StrokeThickness="1.7"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Width="11" Height="10"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center" />
                     </Button>
                     <Button x:Name="BtnWinMaximize"
                             Click="BtnMaximize_Click"
-                            Width="46" Height="38"
+                            Width="42" Height="30"
                             Background="Transparent"
                             BorderThickness="0"
-                            CornerRadius="0"
+                            CornerRadius="6"
                             Padding="0">
                         <Path x:Name="IconMaximizePath"
-                              Data="M 0.5,0.5 L 9.5,0.5 L 9.5,9.5 L 0.5,9.5 Z"
+                              Data="M 0.5,0.5 L 10.5,0.5 L 10.5,10.5 L 0.5,10.5 Z"
                               Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.4"
-                              Width="10" Height="10"
+                              StrokeThickness="1.6"
+                              StrokeLineJoin="Round"
+                              Width="11" Height="11"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center" />
                     </Button>
                     <Button x:Name="BtnWinClose"
                             Click="BtnClose_Click"
-                            Width="46" Height="38"
+                            Width="42" Height="30"
                             Background="Transparent"
                             BorderThickness="0"
-                            CornerRadius="0"
+                            CornerRadius="6"
                             Padding="0"
                             PointerEntered="BtnWinClose_PointerEntered"
                             PointerExited="BtnWinClose_PointerExited">
-                        <Path Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                        <Path x:Name="IconClosePath"
+                              Data="M 0.5,0.5 L 10.5,10.5 M 10.5,0.5 L 0.5,10.5"
                               Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.6"
-                              Width="10" Height="10"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Width="11" Height="11"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center" />
                     </Button>
@@ -113,7 +121,7 @@
             </Grid>
         </Border>
 
-        <!-- ==================== ROW 1: BRAND HEADER BANNER & APPEARANCE BAR (Rule 12) ==================== -->
+        <!-- ==================== ROW 1: BRAND HEADER BANNER & APPEARANCE BAR (Rule 13, 17, 19, 23) ==================== -->
         <Border Grid.Row="1"
                 Margin="18,12,18,8"
                 Padding="18,14"
@@ -121,15 +129,19 @@
                 BorderBrush="{StaticResource BorderSubtleBrush}"
                 BorderThickness="1"
                 CornerRadius="14">
-            <Grid>
+            <Grid x:Name="HeaderGrid">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- High-Res 48x48 App Logo + STORM (Accent) DS DECRYPTOR (No Version!) + Subtitle -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                <!-- High-Res App Logo + Uniform Single-Space STORM DS DECRYPTOR (No Version!) + Subtitle -->
+                <StackPanel x:Name="HeaderBrandPanel" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                     <Border Width="52" Height="52"
                             CornerRadius="12"
                             Background="{StaticResource BgSecondaryBrush}"
@@ -139,77 +151,85 @@
                         <Image x:Name="ImgHeaderLogo" Stretch="Uniform" />
                     </Border>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock FontSize="22" FontWeight="ExtraBold" CharacterSpacing="25">
-                            <Run Text="STORM" Foreground="{StaticResource AccentPrimaryBrush}" />
-                            <Run x:Name="RunHeaderAppName" Text=" DS DECRYPTOR" Foreground="{StaticResource TextPrimaryBrush}" />
-                        </TextBlock>
+                        <!-- Strictly on the same line so XAML never inserts double spaces between STORM and DS DECRYPTOR (Rule 23) -->
+                        <TextBlock FontSize="22" FontWeight="ExtraBold" CharacterSpacing="15" VerticalAlignment="Center"><Run Text="STORM" Foreground="{StaticResource AccentPrimaryBrush}" /><Run x:Name="RunHeaderAppName" Text=" DS DECRYPTOR" Foreground="{StaticResource TextPrimaryBrush}" /></TextBlock>
                         <TextBlock x:Name="TxtSubHeader"
-                                   Text="Комплекс расшифровки Nintendo DS / DSi / DSiWare / 3DS CIA / TAD / NUS"
+                                   Text="Сверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="12.5"
-                                   FontWeight="Medium" />
+                                   FontWeight="Medium"
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Right Appearance Controls: Theme, Accent, Font, Language + About -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <!-- Right Appearance Controls: Theme, Accent, Font, Language + Update + About -->
+                <StackPanel x:Name="HeaderSelectorsPanel" Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                     <!-- Theme Selector -->
                     <StackPanel Spacing="3">
-                        <TextBlock x:Name="LblTheme" Text="Тема" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <ComboBox x:Name="CmbTheme" Width="136" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbTheme_SelectionChanged" />
+                        <TextBlock x:Name="LblTheme" Text="Тема оформления" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbTheme" Width="138" Height="36" Padding="12,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" DropDownOpened="AnyComboBox_DropDownOpened" SelectionChanged="CmbTheme_SelectionChanged" />
                     </StackPanel>
 
                     <!-- Accent Selector -->
                     <StackPanel Spacing="3">
-                        <TextBlock x:Name="LblAccent" Text="Акцент" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <ComboBox x:Name="CmbAccent" Width="116" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbAccent_SelectionChanged" />
+                        <TextBlock x:Name="LblAccent" Text="Цвет акцента" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbAccent" Width="120" Height="36" Padding="12,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" DropDownOpened="AnyComboBox_DropDownOpened" SelectionChanged="CmbAccent_SelectionChanged" />
                     </StackPanel>
 
                     <!-- Font Selector -->
                     <StackPanel Spacing="3">
                         <TextBlock x:Name="LblFont" Text="Шрифт" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <ComboBox x:Name="CmbFont" Width="148" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbFont_SelectionChanged" />
+                        <ComboBox x:Name="CmbFont" Width="152" Height="36" Padding="12,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" DropDownOpened="AnyComboBox_DropDownOpened" SelectionChanged="CmbFont_SelectionChanged" />
                     </StackPanel>
 
                     <!-- Language Selector -->
                     <StackPanel Spacing="3">
-                        <TextBlock x:Name="LblLang" Text="Язык" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
-                        <ComboBox x:Name="CmbLang" Width="138" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbLang_SelectionChanged" />
+                        <TextBlock x:Name="LblLang" Text="Язык интерфейса" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbLang" Width="140" Height="36" Padding="12,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" DropDownOpened="AnyComboBox_DropDownOpened" SelectionChanged="CmbLang_SelectionChanged" />
                     </StackPanel>
 
-                    <!-- Check Updates Button -->
+                    <!-- Check Updates Button (Modern High-Contrast Vector Sync Icon - Rule 21) -->
                     <Button x:Name="BtnCheckUpdate"
                             Click="BtnCheckUpdate_Click"
-                            Height="34"
+                            Width="38" Height="36"
                             Margin="0,17,0,0"
-                            Padding="12,0"
+                            Padding="0"
                             Background="{StaticResource BgSecondaryBrush}"
-                            Foreground="{StaticResource TextPrimaryBrush}"
                             BorderBrush="{StaticResource BorderSubtleBrush}"
                             BorderThickness="1"
-                            CornerRadius="8"
-                            FontWeight="SemiBold"
-                            FontSize="12.5"
-                            Content="🔄" />
+                            CornerRadius="8">
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 21,12 C 21,16.97 16.97,21 12,21 C 9.3,21 6.88,19.8 5.23,17.9 M 3,12 C 3,7.03 7.03,3 12,3 C 14.7,3 17.12,4.2 18.77,6.1 M 19,2.5 L 19,6.5 L 15,6.5 M 5,21.5 L 5,17.5 L 9,17.5"
+                                  Stroke="#38BDF8"
+                                  StrokeThickness="2.1"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round" />
+                        </Viewbox>
+                    </Button>
 
-                    <!-- About Button -->
+                    <!-- About Button (Modern High-Contrast Vector Info Shield Icon - Rule 21) -->
                     <Button x:Name="BtnAbout"
                             Click="BtnAbout_Click"
-                            Height="34"
+                            Width="38" Height="36"
                             Margin="0,17,0,0"
-                            Padding="12,0"
+                            Padding="0"
                             Background="{StaticResource AccentPrimaryBrush}"
-                            Foreground="White"
                             BorderThickness="0"
-                            CornerRadius="8"
-                            FontWeight="Bold"
-                            FontSize="12.5"
-                            Content="?" />
+                            CornerRadius="8">
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 12,16.5 L 12,11.5 M 12,8 L 12.02,8"
+                                  Stroke="#FFFFFF"
+                                  StrokeThickness="2.2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Viewbox>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ==================== ROW 2: MAIN WORKSPACE (TOOLBAR + TAB SWITCHER + TABLES + SETTINGS) ==================== -->
+        <!-- ==================== ROW 2: MAIN WORKSPACE (STRUCTURED 2-TIER TOOLBAR + TABLES + SETTINGS) ==================== -->
         <Grid Grid.Row="2" Margin="18,0,18,8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -217,154 +237,297 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Action Toolbar + View Switcher + Live Search -->
+            <!-- Structured 2-Tier Responsive Toolbar (Rule 17, 18, 21: Zero Clipped Elements & Vertically Centered Stats/Search) -->
             <Border Grid.Row="0"
                     Margin="0,0,0,8"
-                    Padding="14,10"
+                    Padding="14,12"
                     Background="{StaticResource BgCardBrush}"
                     BorderBrush="{StaticResource BorderSubtleBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                <Grid x:Name="ToolbarOuterGrid">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <!-- Left Action Buttons -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                        <Button x:Name="BtnAddFiles"
-                                Click="BtnAddFiles_Click"
-                                Height="36" Padding="14,0"
-                                Background="{StaticResource AccentPrimaryBrush}"
-                                Foreground="White"
-                                BorderThickness="0"
-                                CornerRadius="8"
-                                FontWeight="Bold">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <TextBlock Text="➕" />
-                                <TextBlock x:Name="TxtBtnAddFiles" Text="Добавить ROM-ы" />
-                            </StackPanel>
-                        </Button>
+                    <!-- TIER 1: Action Buttons (Left) + View Switcher Tabs (Right) -->
+                    <Grid x:Name="ToolbarTopRow" Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                        <Button x:Name="BtnAddFolder"
-                                Click="BtnAddFolder_Click"
-                                Height="36" Padding="14,0"
-                                Background="{StaticResource BgSecondaryBrush}"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                FontWeight="SemiBold">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <TextBlock Text="📁" />
-                                <TextBlock x:Name="TxtBtnAddFolder" Text="Добавить папку" />
-                            </StackPanel>
-                        </Button>
+                        <!-- Left Action Buttons with Unified High-Contrast Vector Icons -->
+                        <StackPanel x:Name="ToolbarActionsPanel" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <!-- Add Files (White Vector Icon on Accent Button) -->
+                            <Button x:Name="BtnAddFiles"
+                                    Click="BtnAddFiles_Click"
+                                    Height="38" Padding="15,0"
+                                    Background="{StaticResource AccentPrimaryBrush}"
+                                    Foreground="#FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="8"
+                                    FontWeight="Bold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path Data="M 14,2 L 6,2 C 4.9,2 4,2.9 4,4 L 4,20 C 4,21.1 4.9,22 6,22 L 18,22 C 19.1,22 20,21.1 20,20 L 20,8 Z M 14,2 L 14,8 L 20,8 M 12,11 L 12,17 M 9,14 L 15,14"
+                                              Stroke="#FFFFFF"
+                                              StrokeThickness="2.1"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnAddFiles" Text="Добавить файлы" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
 
-                        <Button x:Name="BtnClearQueue"
-                                Click="BtnClearQueue_Click"
-                                Height="36" Padding="14,0"
-                                Background="{StaticResource BgSecondaryBrush}"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                FontWeight="SemiBold">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <TextBlock Text="🗑" />
-                                <TextBlock x:Name="TxtBtnClearQueue" Text="Очистить список" />
-                            </StackPanel>
-                        </Button>
+                            <!-- Add Folder (Bright Gold Vector Folder-Plus Icon) -->
+                            <Button x:Name="BtnAddFolder"
+                                    Click="BtnAddFolder_Click"
+                                    Height="38" Padding="15,0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path Data="M 22,19 C 22,20.1 21.1,21 20,21 L 4,21 C 2.9,21 2,20.1 2,19 L 2,5 C 2,3.9 2.9,3 4,3 L 9,3 L 11,6 L 20,6 C 21.1,6 22,6.9 22,8 Z M 12,11 L 12,17 M 9,14 L 15,14"
+                                              Stroke="#FBBF24"
+                                              StrokeThickness="2.0"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnAddFolder" Text="Добавить папку" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
 
-                        <Button x:Name="BtnExportReport"
-                                Click="BtnExportReport_Click"
-                                Height="36" Padding="12,0"
-                                Background="{StaticResource BgSecondaryBrush}"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                FontWeight="SemiBold">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="📊" />
-                                <TextBlock x:Name="TxtBtnExport" Text="Экспорт CSV/JSON" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
+                            <!-- Clear List (Bright Rose Vector Trash Icon) -->
+                            <Button x:Name="BtnClearQueue"
+                                    Click="BtnClearQueue_Click"
+                                    Height="38" Padding="15,0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path Data="M 3,6 L 21,6 M 19,6 L 18.2,19.4 C 18.1,20.5 17.2,21.4 16.1,21.4 L 7.9,21.4 C 6.8,21.4 5.9,20.5 5.8,19.4 L 5,6 M 9,6 L 9,4 C 9,3.4 9.4,3 10,3 L 14,3 C 14.6,3 15,3.4 15,4 L 15,6 M 10,11 L 10,17 M 14,11 L 14,17"
+                                              Stroke="#FB7185"
+                                              StrokeThickness="2.0"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnClearQueue" Text="Очистить список" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
 
-                    <!-- Center: Live Search Box -->
-                    <Grid Grid.Column="1" Margin="14,0" MaxWidth="340" HorizontalAlignment="Stretch">
-                        <TextBox x:Name="TxtSearch"
-                                 Height="36"
-                                 Padding="12,6,30,6"
-                                 CornerRadius="8"
-                                 Background="{StaticResource BgSecondaryBrush}"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                 BorderBrush="{StaticResource BorderSubtleBrush}"
-                                 PlaceholderText="🔍 Поиск по названию, коду, региону..."
-                                 TextChanged="TxtSearch_TextChanged" />
+                            <!-- Export CSV/JSON (Bright Emerald Vector Analytics/Export Icon) -->
+                            <Button x:Name="BtnExportReport"
+                                    Click="BtnExportReport_Click"
+                                    Height="38" Padding="15,0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path Data="M 4,19 L 20,19 M 6,15 L 6,10 M 12,15 L 12,5 M 18,15 L 18,8 M 9,8 L 12,5 L 15,8"
+                                              Stroke="#34D399"
+                                              StrokeThickness="2.0"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnExport" Text="Экспорт CSV/JSON" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Right View Switcher Tabs -->
+                        <StackPanel x:Name="ToolbarTabsPanel" Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button x:Name="BtnTabQueue"
+                                    Click="BtnTabQueue_Click"
+                                    Height="38" Padding="16,0"
+                                    Background="{StaticResource AccentPrimaryBrush}"
+                                    Foreground="#FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="8"
+                                    FontWeight="Bold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path x:Name="IconTabQueue"
+                                              Data="M 4,3 L 20,3 C 20.6,3 21,3.4 21,4 L 21,11 L 3,11 L 3,4 C 3,3.4 3.4,3 4,3 Z M 3,13 L 21,13 L 21,20 C 21,20.6 20.6,21 20,21 L 4,21 C 3.4,21 3,20.6 3,20 Z M 7,17 L 9,17 M 16,17 L 17,17"
+                                              Stroke="#FFFFFF"
+                                              StrokeThickness="1.9"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtTabQueue" Text="Очередь обработки (0)" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="BtnTabHistory"
+                                    Click="BtnTabHistory_Click"
+                                    Height="38" Padding="16,0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Path x:Name="IconTabHistory"
+                                              Data="M 12,3 C 16.97,3 21,7.03 21,12 C 21,16.97 16.97,21 12,21 C 7.03,21 3,16.97 3,12 C 3,9.2 4.28,6.7 6.3,5 M 3.5,2.5 L 3.5,6.5 L 7.5,6.5 M 12,7 L 12,12 L 15.5,14"
+                                              Stroke="#38BDF8"
+                                              StrokeThickness="1.9"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtTabHistory" Text="История операций (0)" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
-                    <!-- Right: Tab Switcher (Queue vs History) + Live Stats Badges -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Border Padding="10,5" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run x:Name="LblStatTotal" Text="Всего:" />
-                                    <Run x:Name="TxtStatTotal" Text="0" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="Bold" />
-                                </TextBlock>
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run x:Name="LblStatEnc" Text="Зашифр.:" />
-                                    <Run x:Name="TxtStatEnc" Text="0" Foreground="#F59E0B" FontWeight="Bold" />
-                                </TextBlock>
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run x:Name="LblStatDone" Text="Готово:" />
-                                    <Run x:Name="TxtStatDone" Text="0" Foreground="#10B981" FontWeight="Bold" />
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
+                    <!-- TIER 2: Full-Width Live Search Box (Left) + Vertically Centered 3-Counter Telemetry Pill (Right) -->
+                    <Grid x:Name="ToolbarBottomRow" Grid.Row="1" Margin="0,10,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                        <Button x:Name="BtnTabQueue"
-                                Click="BtnTabQueue_Click"
-                                Height="36" Padding="14,0"
-                                Background="{StaticResource AccentPrimaryBrush}"
-                                Foreground="White"
-                                BorderThickness="0"
+                        <!-- Vertically Centered Live Search Field with Modern Vector Magnifier (Rule 18 & 21) -->
+                        <Border x:Name="SearchBoxBorder"
+                                Grid.Row="0" Grid.Column="0"
+                                Height="38"
                                 CornerRadius="8"
-                                FontWeight="Bold"
-                                Content="🎮 Очередь игр (0)" />
-
-                        <Button x:Name="BtnTabHistory"
-                                Click="BtnTabHistory_Click"
-                                Height="36" Padding="14,0"
                                 Background="{StaticResource BgSecondaryBrush}"
-                                Foreground="{StaticResource TextPrimaryBrush}"
                                 BorderBrush="{StaticResource BorderSubtleBrush}"
                                 BorderThickness="1"
+                                Padding="12,0,8,0">
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <Path Data="M 11,4 C 14.87,4 18,7.13 18,11 C 18,14.87 14.87,18 11,18 C 7.13,18 4,14.87 4,11 C 4,7.13 7.13,4 11,4 Z M 16.2,16.2 L 21,21"
+                                          Stroke="{StaticResource AccentPrimaryBrush}"
+                                          StrokeThickness="2.1"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" />
+                                </Viewbox>
+                                <TextBox x:Name="TxtSearch"
+                                         Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         VerticalContentAlignment="Center"
+                                         MinHeight="0"
+                                         Padding="2,0,6,0"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         FontSize="12.5"
+                                         PlaceholderText="Поиск по названию, коду, региону, формату..."
+                                         TextChanged="TxtSearch_TextChanged" />
+                                <Button x:Name="BtnClearSearch"
+                                        Grid.Column="2"
+                                        Click="BtnClearSearch_Click"
+                                        Visibility="Collapsed"
+                                        Width="24" Height="24"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        VerticalAlignment="Center">
+                                    <Path Data="M 1,1 L 9,9 M 9,1 L 1,9"
+                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                          StrokeThickness="1.7"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Width="10" Height="10" />
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Vertically Centered Live Telemetry Pill: Total / Need Decryption / Ready to Play (Rule 18) -->
+                        <Border x:Name="StatsBadgeBorder"
+                                Grid.Row="0" Grid.Column="1"
+                                Height="38"
+                                Margin="12,0,0,0"
+                                Padding="16,0"
                                 CornerRadius="8"
-                                FontWeight="SemiBold"
-                                Content="📜 История (0)" />
-                    </StackPanel>
+                                Background="{StaticResource BgSecondaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                                <!-- Total Games -->
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Ellipse Width="7" Height="7" Fill="{StaticResource AccentPrimaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="LblStatTotal" Text="Всего игр:" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtStatTotal" Text="0" FontSize="13" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <Rectangle Width="1" Height="16" Fill="{StaticResource BorderSubtleBrush}" VerticalAlignment="Center" />
+
+                                <!-- Need Decryption -->
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Ellipse Width="7" Height="7" Fill="#F59E0B" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="LblStatEnc" Text="Требуют расшифровки:" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtStatEnc" Text="0" FontSize="13" FontWeight="ExtraBold" Foreground="#F59E0B" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <Rectangle Width="1" Height="16" Fill="{StaticResource BorderSubtleBrush}" VerticalAlignment="Center" />
+
+                                <!-- Ready to Play -->
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Ellipse Width="7" Height="7" Fill="#10B981" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="LblStatDone" Text="Готово к запуску:" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtStatDone" Text="0" FontSize="13" FontWeight="ExtraBold" Foreground="#10B981" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Border>
 
-            <!-- ==================== TABLE CONTAINER (QUEUE & HISTORY WITH VERTICAL DIVIDERS - Rule 11) ==================== -->
+            <!-- ==================== TABLE CONTAINER (QUEUE & HISTORY WITH LOCALIZED HEADERS & VERTICAL DIVIDERS - Rule 12 & 20) ==================== -->
             <Border Grid.Row="1"
                     Background="{StaticResource BgCardBrush}"
                     BorderBrush="{StaticResource BorderSubtleBrush}"
                     BorderThickness="1"
-                    CornerRadius="12">
-                <Grid>
+                    CornerRadius="12"
+                    AllowDrop="True">
+                <Grid AllowDrop="True">
                     <!-- VIEW 1: QUEUE TABLE -->
-                    <Grid x:Name="PanelQueueView" Visibility="Visible">
+                    <Grid x:Name="PanelQueueView" Visibility="Visible" AllowDrop="True">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="40" />
+                            <RowDefinition Height="42" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- Queue Table Column Headers with Visible Vertical Dividers & Sorting -->
+                        <!-- Queue Table Column Headers (100% Localized + Vector Sort Arrows - Rule 20) -->
                         <Border Grid.Row="0"
                                 Background="{StaticResource BgSecondaryBrush}"
                                 BorderBrush="{StaticResource BorderSubtleBrush}"
@@ -372,44 +535,59 @@
                                 CornerRadius="12,12,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="68" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="86" />
                                     <ColumnDefinition Width="155" />
-                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="102" />
                                     <ColumnDefinition Width="215" />
-                                    <ColumnDefinition Width="148" />
+                                    <ColumnDefinition Width="158" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="ICON" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HdrColIcon" Grid.Column="0" Text="ИКОНКА" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnSortName" Grid.Column="1" Click="BtnSortName_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,0">
-                                    <TextBlock x:Name="HdrColFile" Text="ФАЙЛ / ВНУТРЕННЕЕ НАЗВАНИЕ ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnSortName" Grid.Column="1" Click="BtnSortName_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="14,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HdrColFile" Text="Имя файла / Название игры" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Path Data="M 0,4 L 4,0 L 8,4 M 0,7 L 4,11 L 8,7" Stroke="{StaticResource AccentPrimaryBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
                                 <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnSortCode" Grid.Column="2" Click="BtnSortCode_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
-                                    <TextBlock x:Name="HdrColCode" Text="КОД ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnSortCode" Grid.Column="2" Click="BtnSortCode_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HdrColCode" Text="Код" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Path Data="M 0,4 L 4,0 L 8,4 M 0,7 L 4,11 L 8,7" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
                                 <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
                                 <TextBlock x:Name="HdrColRegion" Grid.Column="3" Text="РЕГИОН" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnSortFormat" Grid.Column="4" Click="BtnSortFormat_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
-                                    <TextBlock x:Name="HdrColFormat" Text="ФОРМАТ ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnSortFormat" Grid.Column="4" Click="BtnSortFormat_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HdrColFormat" Text="ФОРМАТ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Path Data="M 0,4 L 4,0 L 8,4 M 0,7 L 4,11 L 8,7" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
                                 <Rectangle Grid.Column="4" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnSortSize" Grid.Column="5" Click="BtnSortSize_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
-                                    <TextBlock x:Name="HdrColSize" Text="РАЗМЕР ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnSortSize" Grid.Column="5" Click="BtnSortSize_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HdrColSize" Text="Размер" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Path Data="M 0,4 L 4,0 L 8,4 M 0,7 L 4,11 L 8,7" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
                                 <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnSortStatus" Grid.Column="6" Click="BtnSortStatus_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
-                                    <TextBlock x:Name="HdrColStatus" Text="СТАТУС ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <Button x:Name="BtnSortStatus" Grid.Column="6" Click="BtnSortStatus_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HdrColStatus" Text="Статус" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Path Data="M 0,4 L 4,0 L 8,4 M 0,7 L 4,11 L 8,7" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
                                 <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
@@ -420,6 +598,7 @@
                         <!-- Queue Rows ListView -->
                         <ListView x:Name="ListGames"
                                   Grid.Row="1"
+                                  AllowDrop="True"
                                   SelectionMode="None"
                                   ItemContainerStyle="{StaticResource TableListViewItemStyle}"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -428,40 +607,40 @@
                                     <Border BorderBrush="{StaticResource BorderSubtleBrush}"
                                             BorderThickness="0,0,0,1"
                                             Background="Transparent">
-                                        <Grid MinHeight="50">
+                                        <Grid MinHeight="52">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="68" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="96" />
-                                                <ColumnDefinition Width="78" />
+                                                <ColumnDefinition Width="86" />
                                                 <ColumnDefinition Width="155" />
-                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="102" />
                                                 <ColumnDefinition Width="215" />
-                                                <ColumnDefinition Width="148" />
+                                                <ColumnDefinition Width="158" />
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Col 0: 32x32 Nearest-Neighbor Game Cartridge Icon -->
-                                            <Border Grid.Column="0" Width="38" Height="38" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <!-- Col 0: Crisp 32x32 (128x128 4x Nearest-Neighbor) Game Cartridge Icon -->
+                                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1" Padding="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Border>
                                             <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <!-- Col 1: File Name & Banner Title -->
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Padding="12,4">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Padding="14,4" Spacing="2">
                                                 <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Text="{Binding InternalTitle}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                             <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <!-- Col 2: Game Code -->
-                                            <Border Grid.Column="2" Padding="7,3" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" />
+                                            <Border Grid.Column="2" Padding="8,4" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                                             </Border>
                                             <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <!-- Col 3: Region -->
-                                            <Border Grid.Column="3" Padding="7,3" CornerRadius="6" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding RegionCode}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="11.5" FontWeight="Bold" />
+                                            <Border Grid.Column="3" Padding="8,4" CornerRadius="6" Background="{StaticResource AccentSoftBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RegionCode}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" />
                                             </Border>
                                             <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
@@ -474,18 +653,56 @@
                                             <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <!-- Col 6: Status -->
-                                            <StackPanel Grid.Column="6" VerticalAlignment="Center" Padding="10,4" Spacing="4">
+                                            <StackPanel Grid.Column="6" VerticalAlignment="Center" Padding="10,4" Spacing="5">
                                                 <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" />
                                                 <ProgressBar Value="{Binding ProgressValue}" Maximum="100" Height="4" Foreground="{StaticResource AccentPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" CornerRadius="2" />
                                             </StackPanel>
                                             <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                                            <!-- Col 7: Row Actions (Inspect, Decrypt Single, Open Folder, Remove) -->
-                                            <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Button Click="BtnInspectRom_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="ℹ" ToolTipService.ToolTip="ROM &amp; Banner Inspector" />
-                                                <Button Click="BtnProcessSingle_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" Content="▶" ToolTipService.ToolTip="Decrypt / Process ROM" />
-                                                <Button Click="BtnOpenLocation_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="📂" ToolTipService.ToolTip="Show in Explorer" />
-                                                <Button Click="BtnRemoveSingle_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" ToolTipService.ToolTip="Remove from Queue" />
+                                            <!-- Col 7: Row Actions (Unified Modern High-Contrast Vector Icons - Rule 21) -->
+                                            <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <!-- Inspect ROM & Banner (Cyan Vector Info/Chip Icon) -->
+                                                <Button Click="BtnInspectRom_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" ToolTipService.ToolTip="Инспектор ROM и баннера">
+                                                    <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 12,16.5 L 12,11 M 12,7.5 L 12.02,7.5"
+                                                              Stroke="#38BDF8"
+                                                              StrokeThickness="2.2"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round" />
+                                                    </Viewbox>
+                                                </Button>
+
+                                                <!-- Decrypt Single ROM (White Vector Play Icon on Accent Button) -->
+                                                <Button Click="BtnProcessSingle_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource AccentPrimaryBrush}" BorderThickness="0" ToolTipService.ToolTip="Расшифровать / обработать этот образ">
+                                                    <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 6,4 L 19,12 L 6,20 Z"
+                                                              Fill="#FFFFFF"
+                                                              Stroke="#FFFFFF"
+                                                              StrokeThickness="1.6"
+                                                              StrokeLineJoin="Round" />
+                                                    </Viewbox>
+                                                </Button>
+
+                                                <!-- Open in Explorer (Amber Gold Vector Folder Icon) -->
+                                                <Button Click="BtnOpenLocation_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" ToolTipService.ToolTip="Показать в Проводнике">
+                                                    <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 22,19 C 22,20.1 21.1,21 20,21 L 4,21 C 2.9,21 2,20.1 2,19 L 2,5 C 2,3.9 2.9,3 4,3 L 9,3 L 11,6 L 20,6 C 21.1,6 22,6.9 22,8 Z"
+                                                              Stroke="#FBBF24"
+                                                              StrokeThickness="2.0"
+                                                              StrokeLineJoin="Round" />
+                                                    </Viewbox>
+                                                </Button>
+
+                                                <!-- Remove from Queue (Rose Vector Cross Icon) -->
+                                                <Button Click="BtnRemoveSingle_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" ToolTipService.ToolTip="Удалить из списка">
+                                                    <Viewbox Width="13" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 4,4 L 20,20 M 20,4 L 4,20"
+                                                              Stroke="#FB7185"
+                                                              StrokeThickness="2.4"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round" />
+                                                    </Viewbox>
+                                                </Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -493,42 +710,53 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <!-- Empty Dropzone Overlay -->
+                        <!-- Empty Dropzone Overlay with Modern Vector Emblem -->
                         <Border x:Name="EmptyStateOverlay"
                                 Grid.Row="1"
-                                Margin="28"
+                                Margin="24"
                                 Padding="28"
                                 CornerRadius="14"
                                 BorderBrush="{StaticResource BorderSubtleBrush}"
-                                BorderThickness="2"
+                                BorderThickness="1.5"
                                 Background="Transparent"
                                 IsHitTestVisible="False">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
-                                <TextBlock Text="🎮" FontSize="44" HorizontalAlignment="Center" />
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                                <Border Width="64" Height="64" CornerRadius="16" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1.5" HorizontalAlignment="Center">
+                                    <Viewbox Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Path Data="M 5,3 L 16,3 L 20,7 L 20,21 C 20,21.6 19.6,22 19,22 L 5,22 C 4.4,22 4,21.6 4,21 L 4,4 C 4,3.4 4.4,3 5,3 Z M 8,7 L 15,7 L 15,13 L 8,13 Z M 8,17 L 8,20 M 12,17 L 12,20 M 16,17 L 16,20"
+                                              Stroke="{StaticResource AccentPrimaryBrush}"
+                                              StrokeThickness="1.8"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                </Border>
                                 <TextBlock x:Name="TxtDropTitle"
-                                           Text="Перетащите файлы (.nds, .dsi, .srl, .app, .cia, .tad, title.tmd) или папки сюда"
+                                           Text="Перетащите сюда файлы .nds, .dsi, .app или целую папку с играми"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            FontSize="16"
                                            FontWeight="Bold"
-                                           TextAlignment="Center" />
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap" />
                                 <TextBlock x:Name="TxtDropSub"
-                                           Text="Автоматическое распознавание DSiWare Modcrypt, стандарта NDS, CIA, TAD и дампов NUS"
+                                           Text="Сверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            FontSize="13"
-                                           TextAlignment="Center" />
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </Grid>
 
                     <!-- VIEW 2: HISTORY TABLE -->
-                    <Grid x:Name="PanelHistoryView" Visibility="Collapsed">
+                    <Grid x:Name="PanelHistoryView" Visibility="Collapsed" AllowDrop="True">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="40" />
+                            <RowDefinition Height="42" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- History Header with Visible Vertical Dividers -->
+                        <!-- History Header with Visible Vertical Dividers & Localized Names (Rule 20) -->
                         <Border Grid.Row="0"
                                 Background="{StaticResource BgSecondaryBrush}"
                                 BorderBrush="{StaticResource BorderSubtleBrush}"
@@ -536,23 +764,23 @@
                                 CornerRadius="12,12,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="68" />
                                     <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="96" />
                                     <ColumnDefinition Width="155" />
-                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="102" />
                                     <ColumnDefinition Width="200" />
-                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="116" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="ICON" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HdrHistIcon" Grid.Column="0" Text="ИКОНКА" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
                                 <TextBlock x:Name="HdrHistDate" Grid.Column="1" Text="ДАТА / ВРЕМЯ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <TextBlock x:Name="HdrHistFile" Grid.Column="2" Text="ИМЯ ФАЙЛА" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="12,0" />
+                                <TextBlock x:Name="HdrHistFile" Grid.Column="2" Text="ИМЯ ФАЙЛА" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="14,0" />
                                 <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
                                 <TextBlock x:Name="HdrHistCode" Grid.Column="3" Text="КОД" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -564,49 +792,50 @@
                                 <TextBlock x:Name="HdrHistSize" Grid.Column="5" Text="РАЗМЕР" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <TextBlock x:Name="HdrHistResult" Grid.Column="6" Text="РЕЗУЛЬТАТ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HdrHistResult" Grid.Column="6" Text="СТАТУС" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <TextBlock x:Name="HdrHistActions" Grid.Column="7" Text="ПАПКА" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HdrHistActions" Grid.Column="7" Text="ДЕЙСТВИЯ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
 
                         <ListView x:Name="ListHistory"
                                   Grid.Row="1"
+                                  AllowDrop="True"
                                   SelectionMode="None"
                                   ItemContainerStyle="{StaticResource TableListViewItemStyle}"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Border BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Background="Transparent">
-                                        <Grid MinHeight="48">
+                                        <Grid MinHeight="50">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="68" />
                                                 <ColumnDefinition Width="150" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="96" />
                                                 <ColumnDefinition Width="155" />
-                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="102" />
                                                 <ColumnDefinition Width="200" />
-                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="116" />
                                             </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="UniformToFill" />
+                                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1" Padding="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Border>
                                             <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <TextBlock Grid.Column="1" Text="{Binding Timestamp}" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Padding="12,4">
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Padding="14,4" Spacing="2">
                                                 <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Text="{Binding OutputPath}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                             <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                                            <Border Grid.Column="3" Padding="7,3" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" />
+                                            <Border Grid.Column="3" Padding="8,4" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                                             </Border>
                                             <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
@@ -620,8 +849,23 @@
                                             <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
                                             <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Button Click="BtnHistoryOpenLocation_Click" Tag="{Binding}" Width="32" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="📂" ToolTipService.ToolTip="Show in Explorer" />
-                                                <Button Click="BtnHistoryRemoveSingle_Click" Tag="{Binding}" Width="32" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" ToolTipService.ToolTip="Delete Entry" />
+                                                <Button Click="BtnHistoryOpenLocation_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" ToolTipService.ToolTip="Показать в Проводнике">
+                                                    <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 22,19 C 22,20.1 21.1,21 20,21 L 4,21 C 2.9,21 2,20.1 2,19 L 2,5 C 2,3.9 2.9,3 4,3 L 9,3 L 11,6 L 20,6 C 21.1,6 22,6.9 22,8 Z"
+                                                              Stroke="#FBBF24"
+                                                              StrokeThickness="2.0"
+                                                              StrokeLineJoin="Round" />
+                                                    </Viewbox>
+                                                </Button>
+                                                <Button Click="BtnHistoryRemoveSingle_Click" Tag="{Binding}" Width="32" Height="32" Padding="0" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" ToolTipService.ToolTip="Удалить запись">
+                                                    <Viewbox Width="13" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Data="M 4,4 L 20,20 M 20,4 L 4,20"
+                                                              Stroke="#FB7185"
+                                                              StrokeThickness="2.4"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round" />
+                                                    </Viewbox>
+                                                </Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -629,22 +873,39 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <Border Grid.Row="2" Padding="12,8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,12,12">
-                            <Button x:Name="BtnClearHistory" Click="BtnClearHistory_Click" HorizontalAlignment="Right" Height="32" Padding="14,0" CornerRadius="7" Background="{StaticResource BgCardBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="🗑 Очистить историю" />
+                        <Border Grid.Row="2" Padding="14,10" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,12,12">
+                            <Button x:Name="BtnClearHistory" Click="BtnClearHistory_Click" HorizontalAlignment="Right" Height="34" Padding="14,0" CornerRadius="8" Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                                        <Path Data="M 3,6 L 21,6 M 19,6 L 18.2,19.4 C 18.1,20.5 17.2,21.4 16.1,21.4 L 7.9,21.4 C 6.8,21.4 5.9,20.5 5.8,19.4 L 5,6 M 9,6 L 9,4 L 15,4 L 15,6"
+                                              Stroke="#FB7185"
+                                              StrokeThickness="2.0"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnClearHistory" Text="Очистить историю" Foreground="#FB7185" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </Border>
                     </Grid>
                 </Grid>
             </Border>
 
-            <!-- ==================== BOTTOM SETTINGS & OUTPUT BAR ==================== -->
+            <!-- ==================== BOTTOM SETTINGS & OUTPUT BAR (Rule 17, 18, 19, 21, 23) ==================== -->
             <Border Grid.Row="2"
                     Margin="0,8,0,0"
                     Padding="16,12"
                     Background="{StaticResource BgCardBrush}"
                     BorderBrush="{StaticResource BorderSubtleBrush}"
                     BorderThickness="1"
-                    CornerRadius="12">
-                <Grid>
+                    CornerRadius="12"
+                    AllowDrop="True">
+                <Grid x:Name="BottomBarGrid">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -652,23 +913,23 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Processing Mode + Checkboxes -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                        <StackPanel Spacing="4">
+                    <StackPanel x:Name="BottomModePanel" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
                             <TextBlock x:Name="LblMode" Text="Режим:" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <ComboBox x:Name="CmbMode" Width="250" Height="36" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbMode_SelectionChanged" />
+                            <ComboBox x:Name="CmbMode" Width="250" Height="38" Padding="12,0,8,0" VerticalAlignment="Center" VerticalContentAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" DropDownOpened="AnyComboBox_DropDownOpened" SelectionChanged="CmbMode_SelectionChanged" />
                         </StackPanel>
 
-                        <StackPanel VerticalAlignment="Center" Spacing="4" Margin="4,0,0,0">
+                        <StackPanel VerticalAlignment="Center" Spacing="2" Margin="2,0,0,0">
                             <CheckBox x:Name="ChkVerifyCrc" IsChecked="True" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Пересчёт и проверка CRC16" Checked="Options_Changed" Unchecked="Options_Changed" />
-                            <StackPanel Orientation="Horizontal" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
                                 <CheckBox x:Name="ChkCompatibility" IsChecked="True" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Патч совместимости (NDS / TWiLight)" Checked="Options_Changed" Unchecked="Options_Changed" />
                                 <CheckBox x:Name="ChkBackup" IsChecked="False" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Создавать резервную копию (.bak)" Checked="Options_Changed" Unchecked="Options_Changed" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Output Directory Selector -->
-                    <Grid x:Name="PanelOutputFolder" Grid.Column="1" Margin="18,0" VerticalAlignment="Center">
+                    <!-- Output Directory Selector (Vertically Centered Path Box + Drag-and-Drop Folder Target - Rule 18 & 22) -->
+                    <Grid x:Name="PanelOutputFolder" Grid.Row="0" Grid.Column="1" Margin="18,0" VerticalAlignment="Center" AllowDrop="True" DragOver="OutputFolder_DragOver" Drop="OutputFolder_Drop">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -680,29 +941,141 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="TxtOutputDir" Grid.Column="0" Height="36" IsReadOnly="True" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8,0,0,8" FontSize="12" VerticalContentAlignment="Center" />
-                            <Button x:Name="BtnBrowseOut" Grid.Column="1" Click="BtnBrowseOut_Click" Height="36" Padding="12,0" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1,1,1,1" CornerRadius="0" FontWeight="SemiBold" Content="Обзор..." />
-                            <Button x:Name="BtnOpenOut" Grid.Column="2" Click="BtnOpenOut_Click" Height="36" Padding="12,0" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,1,1,1" CornerRadius="0,8,8,0" FontWeight="SemiBold" Content="📂" />
+
+                            <!-- Vertically Centered Path Field Container (Rule 18) -->
+                            <Border x:Name="BorderOutputDir"
+                                    Grid.Column="0"
+                                    Height="38"
+                                    CornerRadius="8,0,0,8"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    Padding="10,0"
+                                    AllowDrop="True">
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Viewbox Grid.Column="0" Width="15" Height="15" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <Path Data="M 22,19 C 22,20.1 21.1,21 20,21 L 4,21 C 2.9,21 2,20.1 2,19 L 2,5 C 2,3.9 2.9,3 4,3 L 9,3 L 11,6 L 20,6 C 21.1,6 22,6.9 22,8 Z"
+                                              Stroke="#38BDF8"
+                                              StrokeThickness="2.0"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                    <TextBox x:Name="TxtOutputDir"
+                                             Grid.Column="1"
+                                             IsReadOnly="True"
+                                             VerticalAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             MinHeight="0"
+                                             Padding="0"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             FontSize="12.5"
+                                             FontWeight="Medium" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Browse Folder Button with Modern Vector Icon -->
+                            <Button x:Name="BtnBrowseOut"
+                                    Grid.Column="1"
+                                    Click="BtnBrowseOut_Click"
+                                    Height="38"
+                                    Padding="14,0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="0,1,1,1"
+                                    CornerRadius="0"
+                                    FontWeight="SemiBold">
+                                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                    <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                                        <Path Data="M 11,4 C 14.87,4 18,7.13 18,11 C 18,14.87 14.87,18 11,18 C 7.13,18 4,14.87 4,11 C 4,7.13 7.13,4 11,4 Z M 16.2,16.2 L 21,21"
+                                              Stroke="{StaticResource AccentPrimaryBrush}"
+                                              StrokeThickness="2.0"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtBtnBrowseOut" Text="Обзор..." Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Open Output Folder in Explorer Button with High-Contrast Amber Gold Vector Icon -->
+                            <Button x:Name="BtnOpenOut"
+                                    Grid.Column="2"
+                                    Click="BtnOpenOut_Click"
+                                    Width="42"
+                                    Height="38"
+                                    Padding="0"
+                                    Background="{StaticResource BgSecondaryBrush}"
+                                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                                    BorderThickness="0,1,1,1"
+                                    CornerRadius="0,8,8,0">
+                                <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M 22,19 C 22,20.1 21.1,21 20,21 L 4,21 C 2.9,21 2,20.1 2,19 L 2,5 C 2,3.9 2.9,3 4,3 L 9,3 L 11,6 L 20,6 C 21.1,6 22,6.9 22,8 Z M 12,11 L 16,11 L 16,15 M 10,17 L 16,11"
+                                          Stroke="#FBBF24"
+                                          StrokeThickness="2.0"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Viewbox>
+                            </Button>
                         </Grid>
                     </Grid>
 
-                    <!-- Primary Action: DECRYPT ALL -->
-                    <Button x:Name="BtnStartBatch"
-                            Grid.Column="2"
-                            Click="BtnStartBatch_Click"
-                            Height="48"
-                            Padding="24,0"
+                    <!-- Primary Animated 3D Hero Action Button: РАСШИФРОВАТЬ ВСЕ (Rule 21 & 23) -->
+                    <Border x:Name="HeroBtnContainer"
+                            Grid.Row="0" Grid.Column="2"
+                            CornerRadius="12"
+                            BorderBrush="{StaticResource AccentGlowBrush}"
+                            BorderThickness="1.5"
                             Background="{StaticResource AccentPrimaryBrush}"
-                            Foreground="White"
-                            BorderThickness="0"
-                            CornerRadius="10"
-                            FontSize="14.5"
-                            FontWeight="ExtraBold">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="⚡" FontSize="16" />
-                            <TextBlock x:Name="TxtBtnStartBatch" Text="РАСШИФРОВАТЬ ВСЕ" />
-                        </StackPanel>
-                    </Button>
+                            VerticalAlignment="Center"
+                            CenterPoint="110,25,0">
+                        <Border.ScaleTransition>
+                            <Vector3Transition Duration="0:0:0.16" />
+                        </Border.ScaleTransition>
+                        <Border.TranslationTransition>
+                            <Vector3Transition Duration="0:0:0.16" />
+                        </Border.TranslationTransition>
+
+                        <Button x:Name="BtnStartBatch"
+                                Click="BtnStartBatch_Click"
+                                PointerEntered="BtnStartBatch_PointerEntered"
+                                PointerExited="BtnStartBatch_PointerExited"
+                                PointerPressed="BtnStartBatch_PointerPressed"
+                                PointerReleased="BtnStartBatch_PointerReleased"
+                                Height="50"
+                                Padding="24,0"
+                                Background="Transparent"
+                                Foreground="#FFFFFF"
+                                BorderBrush="#45FFFFFF"
+                                BorderThickness="0,1.5,0,0"
+                                CornerRadius="11"
+                                FontSize="14.5"
+                                FontWeight="ExtraBold">
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <!-- Glowing Gold High-Voltage Lightning Badge -->
+                                <Border Width="28" Height="28" CornerRadius="8" Background="#28000000" BorderBrush="#66FDE047" BorderThickness="1" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Path Data="M 13,2 L 4,14 L 11,14 L 10,22 L 20,10 L 13,10 Z"
+                                              Fill="#FDE047"
+                                              Stroke="#FFFFFF"
+                                              StrokeThickness="1.2"
+                                              StrokeLineJoin="Round" />
+                                    </Viewbox>
+                                </Border>
+                                <TextBlock x:Name="TxtBtnStartBatch"
+                                           Text="РАСШИФРОВАТЬ ВСЕ"
+                                           Foreground="#FFFFFF"
+                                           FontWeight="ExtraBold"
+                                           CharacterSpacing="25"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
                 </Grid>
             </Border>
         </Grid>
@@ -722,7 +1095,7 @@
 
                 <TextBlock x:Name="TxtStatusFooter"
                            Grid.Column="0"
-                           Text="Готов к работе. Перетащите образы игр в окно программы."
+                           Text="Перетащите сюда файлы .nds, .dsi, .app или целую папку с играми"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            FontSize="12.5"
                            FontWeight="SemiBold"
@@ -774,13 +1147,15 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Width="76" Height="76" CornerRadius="12" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1.5" Padding="6" Margin="0,0,16,0">
-                            <Image x:Name="ImgInspectorBanner" Width="64" Height="64" Stretch="UniformToFill" />
+                            <Image x:Name="ImgInspectorBanner" Width="64" Height="64" Stretch="Uniform" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                             <TextBlock x:Name="TxtInspectorTitle" Text="ROM &amp; Banner Inspector" FontSize="18" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                             <TextBlock x:Name="TxtInspectorSubtitle" Text="" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource AccentPrimaryBrush}" />
                         </StackPanel>
-                        <Button Grid.Column="2" Click="BtnCloseInspector_Click" Width="34" Height="34" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" VerticalAlignment="Top" />
+                        <Button Grid.Column="2" Click="BtnCloseInspector_Click" Width="34" Height="34" Padding="0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" VerticalAlignment="Top">
+                            <Path Data="M 1,1 L 11,11 M 11,1 L 1,11" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="12" Height="12" />
+                        </Button>
                     </Grid>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="420">
@@ -798,7 +1173,7 @@
                     </ScrollViewer>
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,16,0,0">
-                        <Button x:Name="BtnCopyInspector" Click="BtnCopyInspector_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="📋 Копировать отчёт" />
+                        <Button x:Name="BtnCopyInspector" Click="BtnCopyInspector_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="Копировать отчёт" />
                         <Button Click="BtnCloseInspector_Click" Height="36" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="ОК (ESC)" />
                     </StackPanel>
                 </Grid>
@@ -845,7 +1220,7 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
                         <Button x:Name="BtnDupOverwrite" Click="BtnDupOverwrite_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="Заменить" />
                         <Button x:Name="BtnDupSkip" Click="BtnDupSkip_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Пропустить" />
-                        <Button x:Name="BtnDupCancel" Click="BtnDupCancel_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Отмена" />
+                        <Button x:Name="BtnDupCancel" Click="BtnDupCancel_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="#FB7185" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Отмена" />
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -100,11 +100,30 @@ public static class ThemeManager
         Color c = ParseColor(hex);
         if (res.TryGetValue(key, out object? existing) && existing is SolidColorBrush sb)
         {
-            sb.Color = c;
+            try { sb.Color = c; } catch { res[key] = new SolidColorBrush(c); }
         }
         else
         {
             res[key] = new SolidColorBrush(c);
+        }
+    }
+
+    private static void SetBrushAcrossDictionaries(ResourceDictionary rootRes, string key, string hex)
+    {
+        SetBrush(rootRes, key, hex);
+        foreach (var kv in rootRes.ThemeDictionaries)
+        {
+            if (kv.Value is ResourceDictionary td)
+                SetBrush(td, key, hex);
+        }
+        foreach (var md in rootRes.MergedDictionaries)
+        {
+            SetBrush(md, key, hex);
+            foreach (var kv in md.ThemeDictionaries)
+            {
+                if (kv.Value is ResourceDictionary td)
+                    SetBrush(td, key, hex);
+            }
         }
     }
 
@@ -136,10 +155,12 @@ public static class ThemeManager
             var res = Application.Current?.Resources;
             if (res == null) return;
 
+            string elevatedHex = CurrentPalette.IsLight ? "#E2E8F0" : "#241D42";
+
             SetBrush(res, "BgPrimaryBrush", CurrentPalette.WindowBg);
             SetBrush(res, "BgSecondaryBrush", CurrentPalette.HeaderBg);
             SetBrush(res, "BgCardBrush", CurrentPalette.CardBg);
-            SetBrush(res, "BgElevatedBrush", CurrentPalette.IsLight ? "#E2E8F0" : "#241D42");
+            SetBrush(res, "BgElevatedBrush", elevatedHex);
             SetBrush(res, "BorderSubtleBrush", CurrentPalette.CardBorder);
             SetBrush(res, "TextPrimaryBrush", CurrentPalette.TextPrimary);
             SetBrush(res, "TextSecondaryBrush", CurrentPalette.TextSecondary);
@@ -152,6 +173,45 @@ public static class ThemeManager
             SetBrush(res, "ToolTipBgBrush", CurrentPalette.IsLight ? "#FFFFFF" : CurrentPalette.HeaderBg);
             SetBrush(res, "ToolTipFgBrush", CurrentPalette.TextPrimary);
             SetBrush(res, "ToolTipBorderBrush", CurrentAccent.ColorHex);
+
+            // Style ComboBox & ComboBoxItem & Popup across all 9 themes (Rule 19)
+            string[] comboBgKeys = {
+                "ComboBoxBackground", "ComboBoxBackgroundPointerOver", "ComboBoxBackgroundPressed", "ComboBoxBackgroundFocused",
+                "ComboBoxDropDownBackground"
+            };
+            foreach (var k in comboBgKeys)
+                SetBrushAcrossDictionaries(res, k, CurrentPalette.HeaderBg);
+
+            string[] comboFgKeys = {
+                "ComboBoxForeground", "ComboBoxForegroundPointerOver", "ComboBoxForegroundPressed", "ComboBoxForegroundFocused",
+                "ComboBoxPlaceHolderForeground", "ComboBoxDropDownForeground",
+                "ComboBoxItemForeground", "ComboBoxItemForegroundPointerOver", "ComboBoxItemForegroundPressed",
+                "ComboBoxItemForegroundSelected", "ComboBoxItemForegroundSelectedPointerOver", "ComboBoxItemForegroundSelectedPressed"
+            };
+            foreach (var k in comboFgKeys)
+                SetBrushAcrossDictionaries(res, k, CurrentPalette.TextPrimary);
+
+            SetBrushAcrossDictionaries(res, "ComboBoxBorderBrush", CurrentPalette.CardBorder);
+            SetBrushAcrossDictionaries(res, "ComboBoxBorderBrushPointerOver", CurrentAccent.ColorHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxBorderBrushPressed", CurrentAccent.GlowHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxDropDownBorderBrush", CurrentAccent.ColorHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxDropDownGlyphForeground", CurrentPalette.TextSecondary);
+            SetBrushAcrossDictionaries(res, "ComboBoxDropDownGlyphForegroundPointerOver", CurrentAccent.ColorHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxDropDownGlyphForegroundPressed", CurrentAccent.GlowHex);
+
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackground", "#00000000");
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackgroundPointerOver", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackgroundPressed", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackgroundSelected", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackgroundSelectedPointerOver", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxItemBackgroundSelectedPressed", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ComboBoxItemPillFillBrush", CurrentAccent.ColorHex);
+
+            // Style ScrollBar thumb across all 9 themes (Rule 12)
+            SetBrushAcrossDictionaries(res, "ScrollBarPanningThumbBackground", CurrentAccent.SoftHex);
+            SetBrushAcrossDictionaries(res, "ScrollBarThumbFill", CurrentPalette.CardBorder);
+            SetBrushAcrossDictionaries(res, "ScrollBarThumbFillPointerOver", CurrentAccent.ColorHex);
+            SetBrushAcrossDictionaries(res, "ScrollBarThumbFillPressed", CurrentAccent.GlowHex);
 
             res["AppFontFamily"] = new FontFamily(CurrentFont.FamilyName);
 

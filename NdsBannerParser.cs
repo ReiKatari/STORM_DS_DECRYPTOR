@@ -57,8 +57,8 @@ public static class NdsBannerParser
 {
     private static readonly uint[] Crc32Table = InitCrc32Table();
     private static byte[]? _defaultCartridgePng;
-    private static BitmapImage? _defaultCartridgeImage;
-    private static readonly ConcurrentDictionary<int, BitmapImage> IconCache = new();
+    private static ImageSource? _defaultCartridgeImage;
+    private static readonly ConcurrentDictionary<int, ImageSource> IconCache = new();
 
     private static uint[] InitCrc32Table()
     {
@@ -81,17 +81,30 @@ public static class NdsBannerParser
         return ~crc;
     }
 
+    public static int ReadUpTo(Stream stream, byte[] buffer, int offset, int count)
+    {
+        int total = 0;
+        while (total < count)
+        {
+            int r = stream.Read(buffer, offset + total, count - total);
+            if (r <= 0) break;
+            total += r;
+        }
+        return total;
+    }
+
     public static BannerInfo? Parse(Stream stream, uint bannerOffset)
     {
-        if (bannerOffset == 0 || bannerOffset + 0x240 > stream.Length)
+        if (bannerOffset + 0x240 > stream.Length)
             return null;
 
         try
         {
             int maxRead = (int)Math.Min(0x23C0, stream.Length - bannerOffset);
             byte[] bannerData = new byte[maxRead];
-            stream.Seek(bannerOffset, SeekOrigin.Begin);
-            int read = stream.Read(bannerData, 0, maxRead);
+            if (stream.CanSeek)
+                stream.Seek(bannerOffset, SeekOrigin.Begin);
+            int read = ReadUpTo(stream, bannerData, 0, maxRead);
             if (read < 0x240) return null;
 
             return ParseFromBuffer(bannerData);
@@ -134,6 +147,9 @@ public static class NdsBannerParser
             if (bannerData.Length >= 0x940 && info.Version >= 0x0002) info.TitleChinese = CleanTitle(Encoding.Unicode.GetString(bannerData, 0x840, 256));
             if (bannerData.Length >= 0xA40 && info.Version >= 0x0003) info.TitleKorean  = CleanTitle(Encoding.Unicode.GetString(bannerData, 0x940, 256));
 
+            int tileBaseOffset = 0x0020;
+            int paletteBaseOffset = 0x0220;
+
             if (info.Version >= 0x0103 && bannerData.Length >= 0x23C0)
             {
                 int animSteps = 0;
@@ -143,10 +159,25 @@ public static class NdsBannerParser
                     if (token == 0) break;
                     animSteps++;
                 }
-                if (animSteps > 1)
+                if (animSteps > 0)
                 {
-                    info.HasAnimatedIcon = true;
-                    info.AnimatedFrameCount = animSteps;
+                    info.HasAnimatedIcon = animSteps > 1;
+                    info.AnimatedFrameCount = Math.Max(1, animSteps);
+                }
+
+                // Check if standard NTR icon (0x0020..0x0240) is blank; if so, use DSi TWL animated frame 0
+                int nonZeroNtr = 0;
+                for (int i = 0x0020; i < 0x0240; i++)
+                {
+                    if (bannerData[i] != 0) nonZeroNtr++;
+                }
+                if (nonZeroNtr < 16)
+                {
+                    ushort firstToken = BitConverter.ToUInt16(bannerData, 0x2340);
+                    int bmpIdx = (firstToken >> 8) & 0x07;
+                    int palIdx = (firstToken >> 11) & 0x07;
+                    tileBaseOffset = 0x1240 + bmpIdx * 512;
+                    paletteBaseOffset = 0x2240 + palIdx * 32;
                 }
             }
 
@@ -154,7 +185,7 @@ public static class NdsBannerParser
             Span<uint> palette = stackalloc uint[16];
             for (int i = 0; i < 16; i++)
             {
-                ushort c = BitConverter.ToUInt16(bannerData, 0x0220 + i * 2);
+                ushort c = BitConverter.ToUInt16(bannerData, paletteBaseOffset + i * 2);
                 uint r = (uint)(((c >> 0) & 0x1F) * 255 / 31);
                 uint g = (uint)(((c >> 5) & 0x1F) * 255 / 31);
                 uint b = (uint)(((c >> 10) & 0x1F) * 255 / 31);
@@ -172,7 +203,7 @@ public static class NdsBannerParser
             {
                 int tileX = (tile % 4) * 8;
                 int tileY = (tile / 4) * 8;
-                int tileOffset = 0x0020 + tile * 32;
+                int tileOffset = tileBaseOffset + tile * 32;
 
                 for (int row = 0; row < 8; row++)
                 {
@@ -227,26 +258,23 @@ public static class NdsBannerParser
     public static byte[] EncodeRgbaToPng(byte[] rgba, int width, int height)
     {
         using var ms = new MemoryStream();
-        // PNG Signature
         ms.Write(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
 
-        // IHDR chunk
         Span<byte> ihdr = stackalloc byte[13];
         BinaryPrimitives.WriteUInt32BigEndian(ihdr[0..4], (uint)width);
         BinaryPrimitives.WriteUInt32BigEndian(ihdr[4..8], (uint)height);
-        ihdr[8] = 8;  // Bit depth 8
-        ihdr[9] = 6;  // Color type 6 (RGBA)
-        ihdr[10] = 0; // Compression
-        ihdr[11] = 0; // Filter
-        ihdr[12] = 0; // Interlace
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        ihdr[10] = 0;
+        ihdr[11] = 0;
+        ihdr[12] = 0;
         WritePngChunk(ms, "IHDR"u8, ihdr);
 
-        // IDAT chunk (filtered scanlines compressed with ZLib)
         int stride = width * 4;
         byte[] rawScanlines = new byte[height * (stride + 1)];
         for (int y = 0; y < height; y++)
         {
-            rawScanlines[y * (stride + 1)] = 0; // Filter type 0 (None)
+            rawScanlines[y * (stride + 1)] = 0;
             System.Buffer.BlockCopy(rgba, y * stride, rawScanlines, y * (stride + 1) + 1, stride);
         }
 
@@ -259,7 +287,6 @@ public static class NdsBannerParser
             WritePngChunk(ms, "IDAT"u8, idatMs.ToArray());
         }
 
-        // IEND chunk
         WritePngChunk(ms, "IEND"u8, ReadOnlySpan<byte>.Empty);
         return ms.ToArray();
     }
@@ -304,8 +331,8 @@ public static class NdsBannerParser
                     uint col = 0;
                     if (border) col = 0x8B5CF6FFu;      // Violet Accent
                     else if (pin) col = 0xF59E0BFFu;    // Gold Contacts
-                    else if (label) col = 0x2E2652FFu;  // Label Area
-                    else if (body) col = 0x17132BFFu;   // Cartridge Body
+                    else if (label) col = 0x38BDF8FFu;  // Cyan Cartridge Screen
+                    else if (body) col = 0x1E1738FFu;   // Cartridge Body
 
                     if (col != 0)
                         WriteScaledPixel(rgba, w * scale, x, y, scale, col);
@@ -318,26 +345,122 @@ public static class NdsBannerParser
 
     public static ImageSource GetOrCreateBitmapImage(byte[]? bytes) => FromPngBytes(bytes);
 
+    // Synchronous zero-defect WriteableBitmap decoder for 128x128 RGBA PNGs (eliminates WinUI 3 async stream disposal bug)
     public static ImageSource FromPngBytes(byte[]? bytes)
     {
         try
         {
-            byte[] target = (bytes != null && bytes.Length > 0) ? bytes : DefaultCartridgePng;
+            byte[] target = (bytes != null && bytes.Length > 32) ? bytes : DefaultCartridgePng;
             int hash = (int)ComputeCrc32(target);
             if (IconCache.TryGetValue(hash, out var cached))
                 return cached;
 
+            var wb = TryDecodeOurPngToWriteableBitmap(target);
+            if (wb != null)
+            {
+                IconCache[hash] = wb;
+                return wb;
+            }
+
+            // Fallback: keep MemoryStream alive (NOT disposed with 'using') so async WIC decoding always succeeds
             var bmp = new BitmapImage();
-            using var ms = new MemoryStream(target);
-            bmp.SetSource(ms.AsRandomAccessStream());
+            var persistentMs = new MemoryStream(target, writable: false);
+            bmp.SetSource(persistentMs.AsRandomAccessStream());
             IconCache[hash] = bmp;
             return bmp;
         }
         catch
         {
             if (_defaultCartridgeImage != null) return _defaultCartridgeImage;
-            _defaultCartridgeImage = new BitmapImage();
+            _defaultCartridgeImage = (ImageSource?)TryDecodeOurPngToWriteableBitmap(DefaultCartridgePng) ?? new BitmapImage();
             return _defaultCartridgeImage;
+        }
+    }
+
+    private static WriteableBitmap? TryDecodeOurPngToWriteableBitmap(byte[] png)
+    {
+        try
+        {
+            if (png.Length < 45 || png[0] != 137 || png[1] != 80 || png[2] != 78 || png[3] != 71)
+                return null;
+
+            int width = (int)BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(16, 4));
+            int height = (int)BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(20, 4));
+            if (width <= 0 || height <= 0 || width > 512 || height > 512)
+                return null;
+
+            int pos = 8;
+            using var idatCombined = new MemoryStream();
+            while (pos + 8 <= png.Length)
+            {
+                int chunkLen = (int)BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(pos, 4));
+                string type = Encoding.ASCII.GetString(png, pos + 4, 4);
+                pos += 8;
+                if (pos + chunkLen > png.Length) break;
+                if (type == "IDAT")
+                {
+                    idatCombined.Write(png, pos, chunkLen);
+                }
+                else if (type == "IEND")
+                {
+                    break;
+                }
+                pos += chunkLen + 4; // skip CRC
+            }
+
+            if (idatCombined.Length == 0) return null;
+            idatCombined.Position = 0;
+
+            int stride = width * 4;
+            int expectedLen = height * (stride + 1);
+            byte[] scanlines = new byte[expectedLen];
+            using (var zlib = new ZLibStream(idatCombined, CompressionMode.Decompress))
+            {
+                int read = ReadUpTo(zlib, scanlines, 0, expectedLen);
+                if (read < expectedLen) return null;
+            }
+
+            byte[] bgra = new byte[width * height * 4];
+            for (int y = 0; y < height; y++)
+            {
+                int srcRow = y * (stride + 1) + 1;
+                int dstRow = y * stride;
+                for (int x = 0; x < width; x++)
+                {
+                    byte r = scanlines[srcRow + x * 4 + 0];
+                    byte g = scanlines[srcRow + x * 4 + 1];
+                    byte b = scanlines[srcRow + x * 4 + 2];
+                    byte a = scanlines[srcRow + x * 4 + 3];
+
+                    // Premultiply alpha for WriteableBitmap BGRA8
+                    if (a == 255)
+                    {
+                        bgra[dstRow + x * 4 + 0] = b;
+                        bgra[dstRow + x * 4 + 1] = g;
+                        bgra[dstRow + x * 4 + 2] = r;
+                        bgra[dstRow + x * 4 + 3] = 255;
+                    }
+                    else if (a > 0)
+                    {
+                        bgra[dstRow + x * 4 + 0] = (byte)((b * a) / 255);
+                        bgra[dstRow + x * 4 + 1] = (byte)((g * a) / 255);
+                        bgra[dstRow + x * 4 + 2] = (byte)((r * a) / 255);
+                        bgra[dstRow + x * 4 + 3] = a;
+                    }
+                }
+            }
+
+            var wb = new WriteableBitmap(width, height);
+            using (var pixelStream = wb.PixelBuffer.AsStream())
+            {
+                pixelStream.Write(bgra, 0, bgra.Length);
+            }
+            wb.Invalidate();
+            return wb;
+        }
+        catch
+        {
+            return null;
         }
     }
 

@@ -32,6 +32,17 @@
             <SolidColorBrush x:Key="ToolTipFgBrush" Color="#F0F0F5" />
             <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#8B5CF6" />
 
+            <!-- ComboBox & Popup Theme Resources (Rule 19) -->
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#141026" />
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#8B5CF6" />
+            <SolidColorBrush x:Key="ComboBoxDropDownForeground" Color="#F0F0F5" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#2A8B5CF6" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#2A8B5CF6" />
+            <SolidColorBrush x:Key="ComboBoxItemForeground" Color="#F0F0F5" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="ComboBoxItemPillFillBrush" Color="#8B5CF6" />
+
             <FontFamily x:Key="AppFontFamily">Inter Variable, Segoe UI Variable Text, Segoe UI</FontFamily>
 
             <!-- Global Styled ToolTip for all 9 themes -->
@@ -44,6 +55,17 @@
                 <Setter Property="CornerRadius" Value="8" />
                 <Setter Property="FontSize" Value="12.5" />
                 <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <!-- Global Styled ComboBoxItem for all 9 themes -->
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Margin" Value="4,2" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

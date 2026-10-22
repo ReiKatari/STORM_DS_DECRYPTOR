@@ -13,7 +13,7 @@ public static class UpdateManager
         get
         {
             var v = typeof(UpdateManager).Assembly.GetName().Version;
-            return v != null ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(1, 3, 0);
+            return v != null ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(1, 3, 1);
         }
     }
 

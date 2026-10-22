@@ -5,7 +5,9 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -14,6 +16,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -42,20 +45,25 @@ public sealed partial class MainWindow : Window
     private AppWindow? _appWindow;
     private bool _isLoaded;
     private bool _isProcessingBatch;
+    private bool _isQueueTabActive = true;
     private bool _sortAscending = true;
     private string _currentSortField = "Name";
 
     private UpdateInfo? _pendingUpdate;
     private TaskCompletionSource<(DuplicateChoice Choice, bool ApplyToAll)>? _dupTcs;
 
-    // Native Win32 Drag & Drop (WM_DROPFILES) & Subclassing for Elevated/Standard Drag & Drop
+    // Native Win32 Drag & Drop (WM_DROPFILES) & Child HWND Subclassing for Everywhere Drag & Drop (Rule 22)
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
     private WndProcDelegate? _wndProcDelegate;
     private IntPtr _origWndProc;
+    private readonly Dictionary<IntPtr, IntPtr> _childOrigWndProcs = new();
+    private readonly Dictionary<IntPtr, WndProcDelegate> _childDelegates = new();
 
     private const int GWLP_WNDPROC = -4;
     private const uint WM_DROPFILES = 0x0233;
-    private const uint WM_GETMINMAXINFO = 0x0024;
+    private const uint WM_COPYGLOBALDATA = 0x0049;
     private const uint MSGFLT_ALLOW = 1;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -63,6 +71,9 @@ public sealed partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
     [DllImport("shell32.dll")]
     private static extern void DragAcceptFiles(IntPtr hWnd, bool fAccept);
@@ -75,6 +86,9 @@ public sealed partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool ChangeWindowMessageFilterEx(IntPtr hWnd, uint msg, uint action, IntPtr pChangeFilterStruct);
+
+    [DllImport("ole32.dll")]
+    private static extern int RevokeDragDrop(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -117,6 +131,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         InitializeWindowAndChrome();
         InitializeControlsAndSettings();
+        RegisterEverywhereDragAndDrop();
     }
 
     private void InitializeWindowAndChrome()
@@ -134,7 +149,21 @@ public sealed partial class MainWindow : Window
 
         if (_appWindow != null)
         {
-            _appWindow.Resize(new SizeInt32(1320, 820));
+            // Rule 17: Default width must fit 100% of elements without clipping, while adapting to screen size
+            int targetW = 1420;
+            int targetH = 860;
+            try
+            {
+                var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+                if (area != null)
+                {
+                    targetW = Math.Min(1420, Math.Max(1024, area.WorkArea.Width - 40));
+                    targetH = Math.Min(860, Math.Max(680, area.WorkArea.Height - 40));
+                }
+            }
+            catch { }
+
+            _appWindow.Resize(new SizeInt32(targetW, targetH));
             CenterWindowOnScreen();
             _appWindow.Closing += AppWindow_Closing;
 
@@ -172,16 +201,8 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        // Enable Win32 Drag & Drop (even when elevated via UAC)
-        try
-        {
-            DragAcceptFiles(_hwnd, true);
-            ChangeWindowMessageFilterEx(_hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
-            ChangeWindowMessageFilterEx(_hwnd, 0x0049 /* WM_COPYGLOBALDATA */, MSGFLT_ALLOW, IntPtr.Zero);
-            _wndProcDelegate = CustomWndProc;
-            _origWndProc = SetWindowLongPtr(_hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
-        }
-        catch { }
+        // Enable Win32 Drag & Drop on main HWND
+        EnableWin32DropOnHwnd(_hwnd, isMainHwnd: true);
 
         // Initialize Taskbar Progress
         try
@@ -202,27 +223,123 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    private void CenterWindowOnScreen()
+    // ==================== EVERYWHERE DRAG-AND-DROP (Rule 22) ====================
+
+    private static bool IsProcessElevated()
     {
         try
         {
-            if (_appWindow == null) return;
-            var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
-            if (area != null)
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void RegisterEverywhereDragAndDrop()
+    {
+        // Register handledEventsToo: true across all surfaces so ListView/ScrollViewer/Borders never swallow DragOver/Drop
+        UIElement[] dropSurfaces =
+        {
+            RootPage,
+            RootGrid,
+            ListGames,
+            ListHistory,
+            PanelQueueView,
+            PanelHistoryView
+        };
+
+        var dragOverHandler = new DragEventHandler(RootGrid_DragOver);
+        var dropHandler = new DragEventHandler(RootGrid_Drop);
+
+        foreach (var surface in dropSurfaces)
+        {
+            surface.AllowDrop = true;
+            surface.AddHandler(UIElement.DragOverEvent, dragOverHandler, handledEventsToo: true);
+            surface.AddHandler(UIElement.DropEvent, dropHandler, handledEventsToo: true);
+        }
+
+        // Also register handledEventsToo on Output Folder drop zone
+        PanelOutputFolder.AddHandler(UIElement.DragOverEvent, new DragEventHandler(OutputFolder_DragOver), handledEventsToo: true);
+        PanelOutputFolder.AddHandler(UIElement.DropEvent, new DragEventHandler(OutputFolder_Drop), handledEventsToo: true);
+    }
+
+    private void RootGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Hook child WinUI 3 HWNDs (DesktopChildSiteBridge / InputSiteWindowClass) so WM_DROPFILES works everywhere even when elevated
+        HookChildWindowsForDrop();
+        ApplyResponsiveLayout(RootGrid.ActualWidth);
+
+        // Re-hook after a short delay in case WinUI 3 creates additional input site HWNDs asynchronously
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, HookChildWindowsForDrop);
+    }
+
+    private void EnableWin32DropOnHwnd(IntPtr targetHwnd, bool isMainHwnd)
+    {
+        if (targetHwnd == IntPtr.Zero) return;
+        try
+        {
+            // If running elevated as Administrator, Windows UIPI blocks OLE IDropTarget from standard Explorer.
+            // Revoking OLE IDropTarget on child HWNDs allows Windows to fall back to WM_DROPFILES across the entire window!
+            if (IsProcessElevated())
             {
-                int x = area.WorkArea.X + (area.WorkArea.Width - _appWindow.Size.Width) / 2;
-                int y = area.WorkArea.Y + (area.WorkArea.Height - _appWindow.Size.Height) / 2;
-                _appWindow.Move(new PointInt32(Math.Max(0, x), Math.Max(0, y)));
+                try { RevokeDragDrop(targetHwnd); } catch { }
+            }
+
+            DragAcceptFiles(targetHwnd, true);
+            ChangeWindowMessageFilterEx(targetHwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
+            ChangeWindowMessageFilterEx(targetHwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
+
+            if (isMainHwnd)
+            {
+                if (_wndProcDelegate == null)
+                {
+                    _wndProcDelegate = CustomWndProc;
+                    _origWndProc = SetWindowLongPtr(targetHwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
+                }
+            }
+            else if (!_childOrigWndProcs.ContainsKey(targetHwnd))
+            {
+                WndProcDelegate del = (h, m, w, l) =>
+                {
+                    if (m == WM_DROPFILES)
+                    {
+                        HandleWmDropFiles(w);
+                        return IntPtr.Zero;
+                    }
+                    return _childOrigWndProcs.TryGetValue(h, out IntPtr orig) && orig != IntPtr.Zero
+                        ? CallWindowProc(orig, h, m, w, l)
+                        : IntPtr.Zero;
+                };
+                _childDelegates[targetHwnd] = del;
+                IntPtr prev = SetWindowLongPtr(targetHwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(del));
+                if (prev != IntPtr.Zero)
+                    _childOrigWndProcs[targetHwnd] = prev;
             }
         }
         catch { }
     }
 
-    private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    private void HookChildWindowsForDrop()
     {
-        if (msg == WM_DROPFILES)
+        try
         {
-            IntPtr hDrop = wParam;
+            EnumChildWindows(_hwnd, (childHwnd, _) =>
+            {
+                EnableWin32DropOnHwnd(childHwnd, isMainHwnd: false);
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch { }
+    }
+
+    private void HandleWmDropFiles(IntPtr hDrop)
+    {
+        try
+        {
             uint count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
             var paths = new List<string>();
             for (uint i = 0; i < count; i++)
@@ -238,9 +355,126 @@ public sealed partial class MainWindow : Window
             {
                 DispatcherQueue.TryEnqueue(() => _ = AddPathsAsync(paths));
             }
+        }
+        catch { }
+    }
+
+    private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == WM_DROPFILES)
+        {
+            HandleWmDropFiles(wParam);
             return IntPtr.Zero;
         }
         return CallWindowProc(_origWndProc, hWnd, msg, wParam, lParam);
+    }
+
+    // ==================== RESPONSIVE VERTICAL STACKING LAYOUT (Rule 17) ====================
+
+    private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ApplyResponsiveLayout(e.NewSize.Width);
+    }
+
+    private void ApplyResponsiveLayout(double width)
+    {
+        if (width <= 0) return;
+
+        // 1. Header Banner Responsive Reflow (< 1220px stacks selectors neatly below Brand Title)
+        if (width < 1220)
+        {
+            Grid.SetRow(HeaderSelectorsPanel, 1);
+            Grid.SetColumn(HeaderSelectorsPanel, 0);
+            Grid.SetColumnSpan(HeaderSelectorsPanel, 3);
+            HeaderSelectorsPanel.Margin = new Thickness(0, 12, 0, 0);
+            HeaderSelectorsPanel.HorizontalAlignment = HorizontalAlignment.Left;
+        }
+        else
+        {
+            Grid.SetRow(HeaderSelectorsPanel, 0);
+            Grid.SetColumn(HeaderSelectorsPanel, 2);
+            Grid.SetColumnSpan(HeaderSelectorsPanel, 1);
+            HeaderSelectorsPanel.Margin = new Thickness(0);
+            HeaderSelectorsPanel.HorizontalAlignment = HorizontalAlignment.Right;
+        }
+
+        // 2. Toolbar Tier 1 & Tier 2 Responsive Reflow (< 1020px stacks tabs and telemetry counters vertically)
+        if (width < 1020)
+        {
+            Grid.SetRow(ToolbarTabsPanel, 1);
+            Grid.SetColumn(ToolbarTabsPanel, 0);
+            Grid.SetColumnSpan(ToolbarTabsPanel, 3);
+            ToolbarTabsPanel.Margin = new Thickness(0, 8, 0, 0);
+            ToolbarTabsPanel.HorizontalAlignment = HorizontalAlignment.Left;
+
+            Grid.SetRow(StatsBadgeBorder, 1);
+            Grid.SetColumn(StatsBadgeBorder, 0);
+            Grid.SetColumnSpan(StatsBadgeBorder, 2);
+            StatsBadgeBorder.Margin = new Thickness(0, 8, 0, 0);
+            StatsBadgeBorder.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
+        else
+        {
+            Grid.SetRow(ToolbarTabsPanel, 0);
+            Grid.SetColumn(ToolbarTabsPanel, 2);
+            Grid.SetColumnSpan(ToolbarTabsPanel, 1);
+            ToolbarTabsPanel.Margin = new Thickness(0);
+            ToolbarTabsPanel.HorizontalAlignment = HorizontalAlignment.Right;
+
+            Grid.SetRow(StatsBadgeBorder, 0);
+            Grid.SetColumn(StatsBadgeBorder, 1);
+            Grid.SetColumnSpan(StatsBadgeBorder, 1);
+            StatsBadgeBorder.Margin = new Thickness(12, 0, 0, 0);
+            StatsBadgeBorder.HorizontalAlignment = HorizontalAlignment.Right;
+        }
+
+        // 3. Bottom Settings & Action Bar Responsive Reflow (< 1240px stacks Mode/Checkboxes above Output Folder & Hero Button)
+        if (width < 1240)
+        {
+            Grid.SetRow(BottomModePanel, 0);
+            Grid.SetColumn(BottomModePanel, 0);
+            Grid.SetColumnSpan(BottomModePanel, 3);
+
+            Grid.SetRow(PanelOutputFolder, 1);
+            Grid.SetColumn(PanelOutputFolder, 0);
+            Grid.SetColumnSpan(PanelOutputFolder, 2);
+            PanelOutputFolder.Margin = new Thickness(0, 12, 16, 0);
+
+            Grid.SetRow(HeroBtnContainer, 1);
+            Grid.SetColumn(HeroBtnContainer, 2);
+            HeroBtnContainer.Margin = new Thickness(0, 12, 0, 0);
+        }
+        else
+        {
+            Grid.SetRow(BottomModePanel, 0);
+            Grid.SetColumn(BottomModePanel, 0);
+            Grid.SetColumnSpan(BottomModePanel, 1);
+
+            Grid.SetRow(PanelOutputFolder, 0);
+            Grid.SetColumn(PanelOutputFolder, 1);
+            Grid.SetColumnSpan(PanelOutputFolder, 1);
+            PanelOutputFolder.Margin = new Thickness(18, 0, 18, 0);
+
+            Grid.SetRow(HeroBtnContainer, 0);
+            Grid.SetColumn(HeroBtnContainer, 2);
+            HeroBtnContainer.Margin = new Thickness(0);
+        }
+    }
+
+    private void CenterWindowOnScreen()
+    {
+        try
+        {
+            if (_appWindow == null) return;
+            var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+            if (area != null)
+            {
+                int x = area.WorkArea.X + (area.WorkArea.Width - _appWindow.Size.Width) / 2;
+                int y = area.WorkArea.Y + (area.WorkArea.Height - _appWindow.Size.Height) / 2;
+                _appWindow.Move(new PointInt32(Math.Max(0, x), Math.Max(0, y)));
+            }
+        }
+        catch { }
     }
 
     private void InitializeControlsAndSettings()
@@ -316,8 +550,73 @@ public sealed partial class MainWindow : Window
 
     private void OnThemeChanged()
     {
-        RootPage.RequestedTheme = ThemeManager.CurrentPalette.IsLight ? ElementTheme.Light : ElementTheme.Dark;
+        var p = ThemeManager.CurrentPalette;
+        var a = ThemeManager.CurrentAccent;
+
+        RootPage.RequestedTheme = p.IsLight ? ElementTheme.Light : ElementTheme.Dark;
         RootPage.FontFamily = new FontFamily(ThemeManager.CurrentFont.FamilyName);
+
+        // Refresh ComboBox closed & popup visuals for the active theme (Rule 19)
+        ComboBox[] combos = { CmbTheme, CmbAccent, CmbFont, CmbLang, CmbMode };
+        var bgSec = ThemeManager.BrushFromHex(p.HeaderBg);
+        var txtPri = ThemeManager.BrushFromHex(p.TextPrimary);
+        var brdSub = ThemeManager.BrushFromHex(p.CardBorder);
+
+        foreach (var cmb in combos)
+        {
+            cmb.RequestedTheme = p.IsLight ? ElementTheme.Light : ElementTheme.Dark;
+            cmb.Background = bgSec;
+            cmb.Foreground = txtPri;
+            cmb.BorderBrush = brdSub;
+        }
+
+        UpdateActiveTabVisuals();
+    }
+
+    // Rule 19: Style ComboBox open popup border and items across all 9 themes
+    private void AnyComboBox_DropDownOpened(object sender, object e)
+    {
+        try
+        {
+            var p = ThemeManager.CurrentPalette;
+            var a = ThemeManager.CurrentAccent;
+            var bgCard = ThemeManager.BrushFromHex(p.CardBg);
+            var txtPri = ThemeManager.BrushFromHex(p.TextPrimary);
+            var accBrush = ThemeManager.BrushFromHex(a.ColorHex);
+
+            if (RootGrid.XamlRoot == null) return;
+            var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(RootGrid.XamlRoot);
+            foreach (var popup in popups)
+            {
+                if (popup.Child is FrameworkElement root)
+                {
+                    root.RequestedTheme = p.IsLight ? ElementTheme.Light : ElementTheme.Dark;
+                    StylePopupElementRecursive(root, bgCard, txtPri, accBrush, p.IsLight);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static void StylePopupElementRecursive(DependencyObject parent, Brush bgCard, Brush txtPri, Brush accBrush, bool isLight)
+    {
+        if (parent is Border b && (b.Name == "PopupBorder" || b.CornerRadius.TopLeft > 0))
+        {
+            b.Background = bgCard;
+            b.BorderBrush = accBrush;
+            b.BorderThickness = new Thickness(1.5);
+        }
+        else if (parent is ComboBoxItem cbi)
+        {
+            cbi.Foreground = txtPri;
+            cbi.RequestedTheme = isLight ? ElementTheme.Light : ElementTheme.Dark;
+        }
+
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            StylePopupElementRecursive(VisualTreeHelper.GetChild(parent, i), bgCard, txtPri, accBrush, isLight);
+        }
     }
 
     private void SaveCurrentSettings()
@@ -343,7 +642,7 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    // ==================== LOCALIZATION & TOOLTIPS (Rule 3 & 14) ====================
+    // ==================== LOCALIZATION, COLUMN HEADERS & TOOLTIPS (Rule 3, 14, 20) ====================
 
     private void ApplyLocalization()
     {
@@ -358,6 +657,8 @@ public sealed partial class MainWindow : Window
         TxtBtnAddFiles.Text = G("AddFiles");
         TxtBtnAddFolder.Text = G("AddFolder");
         TxtBtnClearQueue.Text = G("ClearList");
+        TxtBtnExport.Text = G("ExportReport");
+        TxtSearch.PlaceholderText = G("SearchPlaceholder");
 
         LblStatTotal.Text = G("TotalGames") + ":";
         LblStatEnc.Text = G("EncryptedCount") + ":";
@@ -365,33 +666,42 @@ public sealed partial class MainWindow : Window
 
         UpdateTabHeaders();
 
-        HdrColFile.Text = $"{G("ColFileName")} / {G("ColTitle")} ↕";
-        HdrColCode.Text = $"{G("ColCode")} ↕";
-        HdrColFormat.Text = "FORMAT ↕";
-        HdrColSize.Text = $"{G("ColSize")} ↕";
-        HdrColStatus.Text = $"{G("ColStatus")} ↕";
-        HdrColActions.Text = "ACTIONS";
+        // 100% Localized Table Column Headers (Rule 20)
+        HdrColIcon.Text = G("ColIcon");
+        HdrColFile.Text = $"{G("ColFileName")} / {G("ColTitle")}";
+        HdrColCode.Text = G("ColCode");
+        HdrColRegion.Text = G("ColRegion");
+        HdrColFormat.Text = G("ColFormat");
+        HdrColSize.Text = G("ColSize");
+        HdrColStatus.Text = G("ColStatus");
+        HdrColActions.Text = G("ColActions");
 
+        HdrHistIcon.Text = G("ColIcon");
         HdrHistDate.Text = G("ColProcessedAt");
         HdrHistFile.Text = G("ColFileName");
         HdrHistCode.Text = G("ColCode");
-        HdrHistFormat.Text = "FORMAT";
+        HdrHistFormat.Text = G("ColFormat");
         HdrHistSize.Text = G("ColSize");
         HdrHistResult.Text = G("ColStatus");
-        HdrHistActions.Text = G("OpenFolder");
-        BtnClearHistory.Content = $"🗑 {G("ClearHistory")}";
+        HdrHistActions.Text = G("ColActions");
+        TxtBtnClearHistory.Text = G("ClearHistory");
 
         TxtDropTitle.Text = G("DragDropHint");
         TxtDropSub.Text = G("Subtitle");
 
+        LblMode.Text = G("ModeLabel");
         int savedMode = Math.Max(0, CmbMode.SelectedIndex);
         CmbMode.Items.Clear();
         CmbMode.Items.Add(G("ModeCopy"));
         CmbMode.Items.Add(G("ModeInPlace"));
         CmbMode.SelectedIndex = savedMode;
 
+        ChkVerifyCrc.Content = G("ChkVerifyCrc");
+        ChkCompatibility.Content = G("ChkCompatPatch");
+        ChkBackup.Content = G("ChkCreateBackup");
+
         LblOutputFolder.Text = G("OutputFolderLabel");
-        BtnBrowseOut.Content = G("BrowseFolder");
+        TxtBtnBrowseOut.Text = G("BrowseFolder");
         TxtBtnStartBatch.Text = G("DecryptAll").ToUpperInvariant();
 
         if (!_isProcessingBatch)
@@ -411,14 +721,14 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(BtnAddFiles, G("ToolTipAddFiles"));
         ToolTipService.SetToolTip(BtnAddFolder, G("ToolTipAddFolder"));
         ToolTipService.SetToolTip(BtnClearQueue, G("ToolTipClearList"));
-        ToolTipService.SetToolTip(BtnExportReport, "CSV / JSON Report");
-        ToolTipService.SetToolTip(TxtSearch, "Search / Filter Queue");
+        ToolTipService.SetToolTip(BtnExportReport, G("ToolTipExportReport"));
+        ToolTipService.SetToolTip(TxtSearch, G("ToolTipSearch"));
         ToolTipService.SetToolTip(BtnTabQueue, G("ToolTipTabQueue"));
         ToolTipService.SetToolTip(BtnTabHistory, G("ToolTipTabHistory"));
 
         ToolTipService.SetToolTip(CmbMode, G("ToolTipModeCopy"));
-        ToolTipService.SetToolTip(ChkVerifyCrc, "CRC16 Header & Secure Area Validation");
-        ToolTipService.SetToolTip(ChkCompatibility, "NDS / TWiLight Menu++ Compatibility Patch");
+        ToolTipService.SetToolTip(ChkVerifyCrc, G("ToolTipVerifyCrc"));
+        ToolTipService.SetToolTip(ChkCompatibility, G("ToolTipCompatPatch"));
         ToolTipService.SetToolTip(ChkBackup, G("ToolTipBackup"));
         ToolTipService.SetToolTip(TxtOutputDir, G("ToolTipOutFolder"));
         ToolTipService.SetToolTip(BtnBrowseOut, G("ToolTipBrowseFolder"));
@@ -429,8 +739,8 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTabHeaders()
     {
-        BtnTabQueue.Content = $"{LocalizationManager.Get("TabQueue")} ({_allGames.Count})";
-        BtnTabHistory.Content = $"{LocalizationManager.Get("TabHistory")} ({HistoryManager.Items.Count})";
+        TxtTabQueue.Text = $"{LocalizationManager.Get("TabQueue")} ({_allGames.Count})";
+        TxtTabHistory.Text = $"{LocalizationManager.Get("TabHistory")} ({HistoryManager.Items.Count})";
     }
 
     private void UpdateStats()
@@ -479,11 +789,13 @@ public sealed partial class MainWindow : Window
     private void BtnWinClose_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         BtnWinClose.Background = ThemeManager.BrushFromHex("#E11D48");
+        IconClosePath.Stroke = new SolidColorBrush(Colors.White);
     }
 
     private void BtnWinClose_PointerExited(object sender, PointerRoutedEventArgs e)
     {
         BtnWinClose.Background = new SolidColorBrush(Colors.Transparent);
+        IconClosePath.Stroke = (Brush)Application.Current.Resources["TextPrimaryBrush"];
     }
 
     public void RestoreFromTray()
@@ -558,29 +870,61 @@ public sealed partial class MainWindow : Window
 
     // ==================== TAB SWITCHING, SEARCH & SORTING ====================
 
+    private void UpdateActiveTabVisuals()
+    {
+        var accBrush = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
+        var bgSecBrush = (Brush)Application.Current.Resources["BgSecondaryBrush"];
+        var txtPriBrush = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+        var whiteBrush = new SolidColorBrush(Colors.White);
+        var cyanBrush = ThemeManager.BrushFromHex("#38BDF8");
+
+        if (_isQueueTabActive)
+        {
+            BtnTabQueue.Background = accBrush;
+            TxtTabQueue.Foreground = whiteBrush;
+            IconTabQueue.Stroke = whiteBrush;
+
+            BtnTabHistory.Background = bgSecBrush;
+            TxtTabHistory.Foreground = txtPriBrush;
+            IconTabHistory.Stroke = cyanBrush;
+        }
+        else
+        {
+            BtnTabHistory.Background = accBrush;
+            TxtTabHistory.Foreground = whiteBrush;
+            IconTabHistory.Stroke = whiteBrush;
+
+            BtnTabQueue.Background = bgSecBrush;
+            TxtTabQueue.Foreground = txtPriBrush;
+            IconTabQueue.Stroke = cyanBrush;
+        }
+    }
+
     private void BtnTabQueue_Click(object sender, RoutedEventArgs e)
     {
+        _isQueueTabActive = true;
         PanelQueueView.Visibility = Visibility.Visible;
         PanelHistoryView.Visibility = Visibility.Collapsed;
-        BtnTabQueue.Background = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
-        BtnTabQueue.Foreground = new SolidColorBrush(Colors.White);
-        BtnTabHistory.Background = (Brush)Application.Current.Resources["BgSecondaryBrush"];
-        BtnTabHistory.Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+        UpdateActiveTabVisuals();
     }
 
     private void BtnTabHistory_Click(object sender, RoutedEventArgs e)
     {
+        _isQueueTabActive = false;
         PanelQueueView.Visibility = Visibility.Collapsed;
         PanelHistoryView.Visibility = Visibility.Visible;
-        BtnTabHistory.Background = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
-        BtnTabHistory.Foreground = new SolidColorBrush(Colors.White);
-        BtnTabQueue.Background = (Brush)Application.Current.Resources["BgSecondaryBrush"];
-        BtnTabQueue.Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+        UpdateActiveTabVisuals();
     }
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
+        BtnClearSearch.Visibility = string.IsNullOrEmpty(TxtSearch.Text) ? Visibility.Collapsed : Visibility.Visible;
         RefreshFilteredGames();
+    }
+
+    private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
+    {
+        TxtSearch.Text = string.Empty;
     }
 
     private void RefreshFilteredGames()
@@ -632,7 +976,36 @@ public sealed partial class MainWindow : Window
     private void BtnSortSize_Click(object sender, RoutedEventArgs e) => ToggleSort("Size");
     private void BtnSortStatus_Click(object sender, RoutedEventArgs e) => ToggleSort("Status");
 
-    // ==================== ADDING FILES, FOLDERS & DRAG-AND-DROP ====================
+    // ==================== 3D HERO BUTTON HOVER & PRESS ANIMATIONS ====================
+
+    private void BtnStartBatch_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (!BtnStartBatch.IsEnabled) return;
+        HeroBtnContainer.Scale = new Vector3(1.032f, 1.032f, 1.0f);
+        HeroBtnContainer.Translation = new Vector3(0, -2, 0);
+    }
+
+    private void BtnStartBatch_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        HeroBtnContainer.Scale = Vector3.One;
+        HeroBtnContainer.Translation = Vector3.Zero;
+    }
+
+    private void BtnStartBatch_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!BtnStartBatch.IsEnabled) return;
+        HeroBtnContainer.Scale = new Vector3(0.975f, 0.975f, 1.0f);
+        HeroBtnContainer.Translation = new Vector3(0, 1, 0);
+    }
+
+    private void BtnStartBatch_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!BtnStartBatch.IsEnabled) return;
+        HeroBtnContainer.Scale = new Vector3(1.032f, 1.032f, 1.0f);
+        HeroBtnContainer.Translation = new Vector3(0, -2, 0);
+    }
+
+    // ==================== ADDING FILES, FOLDERS & DRAG-AND-DROP (Rule 22) ====================
 
     private async void BtnAddFiles_Click(object sender, RoutedEventArgs e)
     {
@@ -679,9 +1052,12 @@ public sealed partial class MainWindow : Window
 
     private void RootGrid_DragOver(object sender, DragEventArgs e)
     {
-        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        e.AcceptedOperation = DataPackageOperation.Copy;
+        if (e.DragUIOverride != null)
         {
-            e.AcceptedOperation = DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = "STORM DS DECRYPTOR";
+            e.DragUIOverride.IsCaptionVisible = true;
+            e.DragUIOverride.IsContentVisible = true;
         }
     }
 
@@ -694,6 +1070,33 @@ public sealed partial class MainWindow : Window
                 var items = await e.DataView.GetStorageItemsAsync();
                 var paths = items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p)).ToList();
                 if (paths.Count > 0)
+                {
+                    await AddPathsAsync(paths);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void OutputFolder_DragOver(object sender, DragEventArgs e)
+    {
+        e.AcceptedOperation = DataPackageOperation.Copy;
+    }
+
+    private async void OutputFolder_Drop(object sender, DragEventArgs e)
+    {
+        try
+        {
+            if (e.DataView.Contains(StandardDataFormats.StorageItems))
+            {
+                var items = await e.DataView.GetStorageItemsAsync();
+                var paths = items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p)).ToList();
+                if (paths.Count == 1 && Directory.Exists(paths[0]))
+                {
+                    TxtOutputDir.Text = paths[0];
+                    SaveCurrentSettings();
+                }
+                else if (paths.Count > 0)
                 {
                     await AddPathsAsync(paths);
                 }

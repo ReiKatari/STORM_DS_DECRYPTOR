@@ -8,13 +8,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>WFO1000</NoWarn>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
-    <AssemblyName>STORM_DS_DECRYPTOR_1.3.0_Setup</AssemblyName>
-    <Version>1.3.0</Version>
-    <AssemblyVersion>1.3.0.0</AssemblyVersion>
-    <FileVersion>1.3.0.0</FileVersion>
-    <AssemblyTitle>STORM DS DECRYPTOR 1.3.0</AssemblyTitle>
+    <AssemblyName>STORM_DS_DECRYPTOR_1.3.1_Setup</AssemblyName>
+    <Version>1.3.1</Version>
+    <AssemblyVersion>1.3.1.0</AssemblyVersion>
+    <FileVersion>1.3.1.0</FileVersion>
+    <AssemblyTitle>STORM DS DECRYPTOR</AssemblyTitle>
     <Product>STORM DS DECRYPTOR</Product>
-    <Title>STORM DS DECRYPTOR 1.3.0 - STORM INSTALLER</Title>
+    <Title>STORM DS DECRYPTOR</Title>
     <Description>STORM DS DECRYPTOR</Description>
     <Company>STORM TEAM</Company>
     <Authors>STORM TEAM</Authors>
