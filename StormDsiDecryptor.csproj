@@ -10,13 +10,13 @@
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <AssemblyName>STORM DSI DECRYPTOR</AssemblyName>
     <RootNamespace>StormDsiDecryptor</RootNamespace>
-    <Version>1.1.8</Version>
-    <AssemblyVersion>1.1.8.0</AssemblyVersion>
-    <FileVersion>1.1.8.0</FileVersion>
+    <Version>1.1.9</Version>
+    <AssemblyVersion>1.1.9.0</AssemblyVersion>
+    <FileVersion>1.1.9.0</FileVersion>
     <Authors>STORM TEAM</Authors>
     <Company>STORM SOFT</Company>
     <Product>STORM DSI DECRYPTOR</Product>
-    <Title>STORM DSI DECRYPTOR 1.1.8</Title>
+    <Title>STORM DSI DECRYPTOR 1.1.9</Title>
     <Description>Сверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare</Description>
     <Copyright>Copyright © 2026 STORM TEAM. All rights reserved.</Copyright>
     <PublishSingleFile>true</PublishSingleFile>

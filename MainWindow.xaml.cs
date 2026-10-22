@@ -101,7 +101,7 @@ public partial class MainWindow : Window
         {
             _notifyIcon = new System.Windows.Forms.NotifyIcon
             {
-                Text = "STORM DSI DECRYPTOR 1.1.8",
+                Text = "STORM DSI DECRYPTOR 1.1.9",
                 Visible = true
             };
 

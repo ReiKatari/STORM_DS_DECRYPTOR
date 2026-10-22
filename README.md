@@ -60,5 +60,3 @@
 - **Prof. 9, WinterMute, Martin Korth (GBATEK)** — за документацию структуры заголовков Nintendo DS/DSi, расчет контрольных сумм CRC16 заголовка (`0x15E`), карту разделов Modcrypt (`0x220`..`0x22C`) и открытые исследования утилит `dsi-decrypt` и `twl-modcrypt`.
 - **Kokke (tiny-AES-c)** — за открытую эталонную реализацию AES для верификации вычислений CTR-счетчика и поблочного XOR ([GitHub](https://github.com/kokke/tiny-AES-c), Public Domain / Unlicense).
 - **STORM TEAM** — за разработку архитектуры STORM AURORA FLUID, нативную интеграцию DWM без GPU-дедлоков (`BAD_TSG`), многопоточный пакетный движок детекции образов по CRC16-сигнатурам и единый установщик STORM INSTALLER.
-
-*Copyright © 2026 STORM TEAM. Все права защищены.*
