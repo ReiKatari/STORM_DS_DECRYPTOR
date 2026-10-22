@@ -93,6 +93,16 @@ public partial class MainWindow : Window
         UpdateLocalization();
         UpdateStats();
         UpdateHistoryStats();
+
+        // Background automatic check for updates from GitHub (silent, non-blocking)
+        Loaded += (s, e) =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(2500);
+                await UpdateManager.CheckForUpdatesAsync(this, silent: true);
+            });
+        };
     }
 
     private void InitSystemTray()
@@ -158,6 +168,14 @@ public partial class MainWindow : Window
         {
             Font = boldMenuFont
         };
+        var itemCheckUpdates = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayCheckUpdates"), null, async (s, e) =>
+        {
+            RestoreFromTray();
+            await UpdateManager.CheckForUpdatesAsync(this, silent: false);
+        })
+        {
+            Font = menuFont
+        };
         var itemAbout = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayAbout"), null, (s, e) => ShowAbout())
         {
             Font = menuFont
@@ -168,6 +186,7 @@ public partial class MainWindow : Window
         };
 
         menu.Items.Add(itemShow);
+        menu.Items.Add(itemCheckUpdates);
         menu.Items.Add(itemAbout);
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add(itemExit);
@@ -180,6 +199,24 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+    }
+
+    private async void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        BtnCheckUpdates.IsEnabled = false;
+        try
+        {
+            await UpdateManager.CheckForUpdatesAsync(this, silent: false);
+        }
+        finally
+        {
+            BtnCheckUpdates.IsEnabled = true;
+        }
+    }
+
+    private void BtnAbout_Click(object sender, RoutedEventArgs e)
+    {
+        ShowAbout();
     }
 
     public void ShowAbout()
@@ -358,6 +395,9 @@ public partial class MainWindow : Window
         ColHistDate.Header = LocalizationManager.Get("ColProcessedAt");
         ColHistSize.Header = LocalizationManager.Get("ColSize");
         ColHistStatus.Header = LocalizationManager.Get("ColStatus");
+
+        BtnCheckUpdates.Content = LocalizationManager.Get("BtnCheckUpdates") ?? "🔄 Обновления";
+        BtnAbout.Content = LocalizationManager.Get("TrayAbout") ?? "ℹ️ О программе";
 
         UpdateTrayMenu();
     }

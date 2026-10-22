@@ -755,7 +755,17 @@
             </Border>
 
             <!-- Footer / Status Log Bar -->
-            <TextBlock Grid.Row="5" x:Name="TxtStatusLog" Text="Готово к работе" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" HorizontalAlignment="Left" />
+            <Grid Grid.Row="5" Margin="0,2,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="TxtStatusLog" Text="Готово к работе" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnCheckUpdates" Content="🔄 Обновления" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,8,0" Click="BtnCheckUpdates_Click" />
+                    <Button x:Name="BtnAbout" Content="ℹ️ О программе" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Click="BtnAbout_Click" />
+                </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

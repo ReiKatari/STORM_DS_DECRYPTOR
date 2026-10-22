@@ -17,7 +17,6 @@
     <Description>STORM DSI DECRYPTOR 1.1.9</Description>
     <Company>STORM SOFT</Company>
     <Authors>STORM TEAM</Authors>
-    <Copyright>Copyright © 2026 STORM TEAM. All rights reserved.</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
