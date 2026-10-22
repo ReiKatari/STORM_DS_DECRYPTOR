@@ -17,4 +17,13 @@ public class HistoryItem
     public string Status { get; set; } = string.Empty;
     public long ElapsedMs { get; set; }
     public string OutPath { get; set; } = string.Empty;
+
+    public byte[]? BannerIconPng { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Windows.Media.ImageSource BannerIcon
+    {
+        get => NdsBannerParser.FromPngBytes(BannerIconPng);
+        set { }
+    }
 }

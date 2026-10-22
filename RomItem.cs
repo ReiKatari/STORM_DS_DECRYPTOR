@@ -24,6 +24,20 @@ public class RomItem : INotifyPropertyChanged
     public string ArchiveEntryName { get; set; } = string.Empty;
     public string SuggestedFileName { get; set; } = string.Empty;
 
+    private System.Windows.Media.ImageSource? _bannerIcon;
+    public System.Windows.Media.ImageSource? BannerIcon
+    {
+        get => _bannerIcon ?? NdsBannerParser.DefaultCartridgeIcon;
+        set { _bannerIcon = value; OnPropertyChanged(); }
+    }
+    public byte[]? BannerIconPng { get; set; }
+
+    public bool IsSpecialFormat { get; set; }
+    public string SpecialFormatType { get; set; } = string.Empty;
+    public long SpecialContentOffset { get; set; }
+    public long SpecialContentSize { get; set; }
+    public string TitleId { get; set; } = string.Empty;
+
     public bool IsEncrypted
     {
         get => _isEncrypted;

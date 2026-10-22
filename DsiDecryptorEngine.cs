@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -19,6 +20,7 @@ public class RomInfo
     public uint Modcrypt1Size { get; set; }
     public uint Modcrypt2Offset { get; set; }
     public uint Modcrypt2Size { get; set; }
+    public BannerInfo? Banner { get; set; }
 }
 
 public static class DsiDecryptorEngine
@@ -296,6 +298,17 @@ public static class DsiDecryptorEngine
         info.GameTitle = System.Text.Encoding.ASCII.GetString(header, 0, 12).Trim((char)0);
         info.GameCode = System.Text.Encoding.ASCII.GetString(header, 0x0C, 4);
 
+        // Try extracting high-resolution banner title & icon
+        uint bannerOffset = BitConverter.ToUInt32(header, 0x68);
+        if (bannerOffset != 0 && bannerOffset + 0x840 <= fi.Length)
+        {
+            info.Banner = NdsBannerParser.Parse(fs, bannerOffset);
+            if (info.Banner != null && !string.IsNullOrWhiteSpace(info.Banner.BestTitle))
+            {
+                info.GameTitle = info.Banner.BestTitle;
+            }
+        }
+
         byte unitCode = header[0x12];
         info.IsDsiRom = (unitCode & 0x02) != 0 || unitCode == 0x03;
 
@@ -552,7 +565,23 @@ public static class DsiDecryptorEngine
         return true;
     }
 
-    public static bool DecryptFile(string inputPath, string outputPath)
+    public static bool ValidateDecryptedRom(byte[] rom)
+    {
+        if (rom == null || rom.Length < 0x200) return false;
+        if (!IsRomHeader(rom)) return false;
+
+        uint arm9Off = BitConverter.ToUInt32(rom, 0x20);
+        uint arm9Size = BitConverter.ToUInt32(rom, 0x2C);
+        uint arm7Off = BitConverter.ToUInt32(rom, 0x30);
+        uint arm7Size = BitConverter.ToUInt32(rom, 0x3C);
+
+        if (arm9Off > 0 && arm9Size > 0 && arm9Off + arm9Size > rom.Length) return false;
+        if (arm7Off > 0 && arm7Size > 0 && arm7Off + arm7Size > rom.Length) return false;
+
+        return true;
+    }
+
+    public static bool DecryptFile(string inputPath, string outputPath, bool createBackup = false)
     {
         var info = InspectRom(inputPath);
         if (!info.IsEncrypted && !info.NeedsCompatibilityPatch)
@@ -573,11 +602,68 @@ public static class DsiDecryptorEngine
         bool res = DecryptRomBuffer(rom);
         if (!res) return false;
 
+        if (!ValidateDecryptedRom(rom)) return false;
+
         string? dir = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        File.WriteAllBytes(outputPath, rom);
-        return true;
+        bool isInPlace = string.Equals(Path.GetFullPath(inputPath), Path.GetFullPath(outputPath), StringComparison.OrdinalIgnoreCase);
+
+        // Atomic safe write via .tmp_storm_* file
+        string tempFile = Path.Combine(dir ?? "", $"{Path.GetFileName(outputPath)}.tmp_storm_{Guid.NewGuid():N}");
+
+        try
+        {
+            File.WriteAllBytes(tempFile, rom);
+
+            var fi = new FileInfo(tempFile);
+            if (fi.Length != rom.Length)
+            {
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+                return false;
+            }
+
+            string backupFile = outputPath + ".bak";
+
+            if (isInPlace && File.Exists(outputPath))
+            {
+                try
+                {
+                    if (File.Exists(backupFile)) File.Delete(backupFile);
+                    File.Replace(tempFile, outputPath, backupFile, ignoreMetadataErrors: true);
+                    if (!createBackup && File.Exists(backupFile))
+                    {
+                        File.Delete(backupFile);
+                    }
+                }
+                catch
+                {
+                    if (File.Exists(backupFile)) File.Delete(backupFile);
+                    File.Move(outputPath, backupFile);
+                    File.Move(tempFile, outputPath);
+                    if (!createBackup && File.Exists(backupFile))
+                    {
+                        File.Delete(backupFile);
+                    }
+                }
+            }
+            else
+            {
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+                File.Move(tempFile, outputPath);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[DecryptFile Atomic Write Error]: {ex.Message}");
+            if (File.Exists(tempFile))
+            {
+                try { File.Delete(tempFile); } catch { }
+            }
+            return false;
+        }
     }
 }

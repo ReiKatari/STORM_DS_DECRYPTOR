@@ -22,78 +22,116 @@ public static class HistoryManager
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    private static readonly object _syncLock = new();
+
     public static ObservableCollection<HistoryItem> Items { get; } = new();
 
     public static void Load()
     {
-        try
+        lock (_syncLock)
         {
-            Items.Clear();
-            if (File.Exists(HistoryFile))
+            try
             {
-                string json = File.ReadAllText(HistoryFile);
-                var list = JsonSerializer.Deserialize<List<HistoryItem>>(json, JsonOptions);
-                if (list != null)
+                Items.Clear();
+                if (File.Exists(HistoryFile))
                 {
-                    foreach (var item in list.OrderByDescending(x => x.ProcessedAt))
+                    string json = File.ReadAllText(HistoryFile);
+                    var list = JsonSerializer.Deserialize<List<HistoryItem>>(json, JsonOptions);
+                    if (list != null)
                     {
-                        Items.Add(item);
+                        foreach (var item in list.OrderByDescending(x => x.ProcessedAt))
+                        {
+                            Items.Add(item);
+                        }
                     }
                 }
             }
+            catch { }
         }
-        catch { }
     }
 
     public static void Save()
     {
-        try
+        lock (_syncLock)
         {
-            Directory.CreateDirectory(HistoryDir);
-            string json = JsonSerializer.Serialize(Items.ToList(), JsonOptions);
-            File.WriteAllText(HistoryFile, json);
+            try
+            {
+                Directory.CreateDirectory(HistoryDir);
+                string json = JsonSerializer.Serialize(Items.ToList(), JsonOptions);
+                File.WriteAllText(HistoryFile, json);
+            }
+            catch { }
         }
-        catch { }
     }
 
     public static void Add(HistoryItem item)
     {
-        try
+        if (System.Windows.Application.Current?.Dispatcher != null &&
+            !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {
-            var existing = Items.FirstOrDefault(x =>
-                x.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(x.GameCode) && x.GameCode != "-" && x.GameCode.Equals(item.GameCode, StringComparison.OrdinalIgnoreCase)));
-            if (existing != null)
-            {
-                Items.Remove(existing);
-            }
-
-            Items.Insert(0, item);
-            Save();
+            System.Windows.Application.Current.Dispatcher.Invoke(() => Add(item));
+            return;
         }
-        catch { }
+
+        lock (_syncLock)
+        {
+            try
+            {
+                var existing = Items.FirstOrDefault(x =>
+                    x.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(x.GameCode) && x.GameCode != "-" && x.GameCode.Equals(item.GameCode, StringComparison.OrdinalIgnoreCase)));
+                if (existing != null)
+                {
+                    Items.Remove(existing);
+                }
+
+                Items.Insert(0, item);
+                Save();
+            }
+            catch { }
+        }
     }
 
     public static void Remove(HistoryItem item)
     {
-        try
+        if (System.Windows.Application.Current?.Dispatcher != null &&
+            !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {
-            if (Items.Remove(item))
-            {
-                Save();
-            }
+            System.Windows.Application.Current.Dispatcher.Invoke(() => Remove(item));
+            return;
         }
-        catch { }
+
+        lock (_syncLock)
+        {
+            try
+            {
+                if (Items.Remove(item))
+                {
+                    Save();
+                }
+            }
+            catch { }
+        }
     }
 
     public static void Clear()
     {
-        try
+        if (System.Windows.Application.Current?.Dispatcher != null &&
+            !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {
-            Items.Clear();
-            Save();
+            System.Windows.Application.Current.Dispatcher.Invoke(Clear);
+            return;
         }
-        catch { }
+
+        lock (_syncLock)
+        {
+            try
+            {
+                Items.Clear();
+                Save();
+            }
+            catch { }
+        }
     }
 
     public static HistoryItem? Find(string filePath)

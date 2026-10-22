@@ -736,6 +736,7 @@ public partial class MainWindow : Window
 
             void ProcessFile(string filePath)
             {
+                // 1. Archives (.zip, .7z, .rar, etc.)
                 if (ArchiveManager.IsArchiveFile(filePath))
                 {
                     try
@@ -747,7 +748,9 @@ public partial class MainWindow : Window
                             {
                                 FilePath = filePath,
                                 FileName = $"{Path.GetFileName(filePath)} [{r.EntryName}]",
-                                GameTitle = string.IsNullOrWhiteSpace(r.RomInfo.GameTitle) ? Path.GetFileNameWithoutExtension(filePath) : r.RomInfo.GameTitle,
+                                GameTitle = !string.IsNullOrWhiteSpace(r.RomInfo.Banner?.BestTitle)
+                                    ? r.RomInfo.Banner.BestTitle
+                                    : (!string.IsNullOrWhiteSpace(r.RomInfo.GameTitle) ? r.RomInfo.GameTitle : Path.GetFileNameWithoutExtension(filePath)),
                                 GameCode = r.RomInfo.GameCode,
                                 FileSize = r.UncompressedSize,
                                 IsEncrypted = r.RomInfo.IsEncrypted,
@@ -757,6 +760,8 @@ public partial class MainWindow : Window
                                 ArchivePath = filePath,
                                 ArchiveEntryName = r.EntryName,
                                 SuggestedFileName = r.SuggestedFileName,
+                                BannerIcon = r.RomInfo.Banner?.Icon,
+                                BannerIconPng = r.RomInfo.Banner?.IconPng,
                                 Status = r.RomInfo.IsEncrypted
                                     ? LocalizationManager.Get("StatusEncrypted")
                                     : (r.RomInfo.NeedsCompatibilityPatch
@@ -773,7 +778,50 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                // If not archive: check if direct ROM candidate or generic DSiWare content (e.g. 00000000)
+                // 2. Special Formats: .cia, .tad
+                if (SpecialFormatManager.IsSpecialFormat(filePath))
+                {
+                    try
+                    {
+                        var special = filePath.EndsWith(".cia", StringComparison.OrdinalIgnoreCase)
+                            ? SpecialFormatManager.InspectCia(filePath)
+                            : SpecialFormatManager.InspectTad(filePath);
+
+                        if (special != null)
+                        {
+                            var item = new RomItem
+                            {
+                                FilePath = filePath,
+                                FileName = Path.GetFileName(filePath),
+                                SuggestedFileName = special.InternalName,
+                                GameTitle = !string.IsNullOrWhiteSpace(special.GameTitle) ? special.GameTitle : Path.GetFileNameWithoutExtension(filePath),
+                                GameCode = special.GameCode,
+                                FileSize = special.ContentSize,
+                                IsEncrypted = special.IsEncrypted,
+                                IsDsiRom = true,
+                                NeedsCompatibilityPatch = special.NeedsCompatibilityPatch,
+                                IsSpecialFormat = true,
+                                SpecialFormatType = special.FormatType,
+                                SpecialContentOffset = special.ContentOffset,
+                                SpecialContentSize = special.ContentSize,
+                                TitleId = special.TitleId,
+                                BannerIcon = special.Banner?.Icon,
+                                BannerIconPng = special.Banner?.IconPng,
+                                Status = special.IsEncrypted
+                                    ? LocalizationManager.Get("StatusEncrypted")
+                                    : LocalizationManager.Get("StatusDecrypted")
+                            };
+                            itemsToAdd.Add(item);
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Special format error {filePath}]: {ex.Message}");
+                    }
+                }
+
+                // 3. Direct ROM candidates (.nds, .dsi, .app, .srl, or raw 00000000)
                 if (IsRomCandidate(filePath))
                 {
                     var info = DsiDecryptorEngine.InspectRom(filePath);
@@ -783,7 +831,6 @@ public partial class MainWindow : Window
                         string suggestedName = fileName;
                         string parentDir = Path.GetFileName(Path.GetDirectoryName(filePath) ?? "");
 
-                        // If generic numeric name (e.g. 00000000), use parent directory name if available
                         if ((fileName.All(char.IsDigit) || string.IsNullOrEmpty(Path.GetExtension(filePath))) && !string.IsNullOrWhiteSpace(parentDir))
                         {
                             suggestedName = $"{parentDir}.nds";
@@ -801,12 +848,16 @@ public partial class MainWindow : Window
                             FilePath = filePath,
                             FileName = fileName,
                             SuggestedFileName = suggestedName,
-                            GameTitle = string.IsNullOrWhiteSpace(info.GameTitle) ? Path.GetFileNameWithoutExtension(filePath) : info.GameTitle,
+                            GameTitle = !string.IsNullOrWhiteSpace(info.Banner?.BestTitle)
+                                ? info.Banner.BestTitle
+                                : (!string.IsNullOrWhiteSpace(info.GameTitle) ? info.GameTitle : Path.GetFileNameWithoutExtension(filePath)),
                             GameCode = info.GameCode,
                             FileSize = info.FileSize,
                             IsEncrypted = info.IsEncrypted,
                             IsDsiRom = info.IsDsiRom,
                             NeedsCompatibilityPatch = info.NeedsCompatibilityPatch,
+                            BannerIcon = info.Banner?.Icon,
+                            BannerIconPng = info.Banner?.IconPng,
                             Status = info.IsEncrypted
                                 ? LocalizationManager.Get("StatusEncrypted")
                                 : (info.NeedsCompatibilityPatch
@@ -827,6 +878,36 @@ public partial class MainWindow : Window
                 else if (Directory.Exists(p))
                 {
                     _lastFolderPath = p;
+
+                    // Check if the directory itself is a NUS Downloader dump folder
+                    var nus = SpecialFormatManager.InspectNusFolder(p);
+                    if (nus != null)
+                    {
+                        var item = new RomItem
+                        {
+                            FilePath = nus.ContainerPath,
+                            FileName = $"{Path.GetFileName(p)} (NUS)",
+                            SuggestedFileName = nus.InternalName,
+                            GameTitle = !string.IsNullOrWhiteSpace(nus.GameTitle) ? nus.GameTitle : Path.GetFileName(p),
+                            GameCode = nus.GameCode,
+                            FileSize = nus.ContentSize,
+                            IsEncrypted = nus.IsEncrypted,
+                            IsDsiRom = true,
+                            IsSpecialFormat = true,
+                            SpecialFormatType = "NUS",
+                            SpecialContentOffset = 0,
+                            SpecialContentSize = nus.ContentSize,
+                            TitleId = nus.TitleId,
+                            BannerIcon = nus.Banner?.Icon,
+                            BannerIconPng = nus.Banner?.IconPng,
+                            Status = nus.IsEncrypted
+                                ? LocalizationManager.Get("StatusEncrypted")
+                                : LocalizationManager.Get("StatusDecrypted")
+                        };
+                        itemsToAdd.Add(item);
+                        continue;
+                    }
+
                     try
                     {
                         foreach (var f in Directory.EnumerateFiles(p, "*.*", SearchOption.AllDirectories))
@@ -869,6 +950,7 @@ public partial class MainWindow : Window
         if (_games.Count == 0) return;
 
         bool inPlace = ChkInPlace.IsChecked == true;
+        bool createBackup = inPlace && ChkBackup.IsChecked == true;
         var gamesToProcess = new List<RomItem>();
         DuplicateAction? appliedToAll = null;
 
@@ -936,13 +1018,20 @@ public partial class MainWindow : Window
 
         ProgBar.Value = 0;
         ProgBar.Maximum = gamesToProcess.Count;
+        TbProgress.ProgressState = System.Windows.Shell.TaskbarItemProgressState.Normal;
+        TbProgress.ProgressValue = 0;
 
         int processed = 0;
         var totalSw = Stopwatch.StartNew();
 
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+        };
+
         try
         {
-            foreach (var item in gamesToProcess)
+            await Parallel.ForEachAsync(gamesToProcess, parallelOptions, async (item, cancellationToken) =>
             {
                 string targetDir = (!string.IsNullOrWhiteSpace(_customOutputDir) && Directory.Exists(_customOutputDir))
                     ? _customOutputDir
@@ -968,78 +1057,49 @@ public partial class MainWindow : Window
                 bool wasEncrypted = item.IsEncrypted;
                 bool neededPatch = item.NeedsCompatibilityPatch;
 
-                if (item.IsFromArchive)
-                {
-                    item.Status = LocalizationManager.Get("StatusProcessing");
-                    TxtStatusLog.Text = $"{item.Status} {outFileName}...";
-
-                    await Task.Run(() =>
-                    {
-                        var sw = Stopwatch.StartNew();
-                        try
-                        {
-                            success = ArchiveManager.ExtractAndDecrypt(item.ArchivePath, item.ArchiveEntryName, outPath);
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[Archive Decrypt Error {item.ArchivePath}]: {ex.Message}");
-                            success = false;
-                        }
-                        sw.Stop();
-                        elapsedMs = sw.ElapsedMilliseconds;
-                    });
-                }
-                else if (item.IsEncrypted || item.NeedsCompatibilityPatch)
-                {
-                    string statusProg = item.IsEncrypted
+                item.IsProcessing = true;
+                string statusProg = item.IsFromArchive
+                    ? LocalizationManager.Get("StatusProcessing")
+                    : (item.IsEncrypted
                         ? LocalizationManager.Get("StatusProcessing")
-                        : LocalizationManager.Get("StatusPatching");
-                    item.Status = statusProg;
-                    TxtStatusLog.Text = $"{statusProg} {outFileName}...";
+                        : (item.NeedsCompatibilityPatch ? LocalizationManager.Get("StatusPatching") : LocalizationManager.Get("StatusCopying")));
+                item.Status = statusProg;
 
-                    await Task.Run(() =>
-                    {
-                        var sw = Stopwatch.StartNew();
-                        try
-                        {
-                            success = DsiDecryptorEngine.DecryptFile(item.FilePath, outPath);
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[Decrypt Error {item.FilePath}]: {ex.Message}");
-                            success = false;
-                        }
-                        sw.Stop();
-                        elapsedMs = sw.ElapsedMilliseconds;
-                    });
-                }
-                else
+                var sw = Stopwatch.StartNew();
+                try
                 {
-                    item.Status = LocalizationManager.Get("StatusCopying");
-                    TxtStatusLog.Text = $"Копирование: {outFileName}...";
-
-                    await Task.Run(() =>
+                    if (item.IsFromArchive)
                     {
-                        var sw = Stopwatch.StartNew();
-                        try
+                        success = ArchiveManager.ExtractAndDecrypt(item.ArchivePath, item.ArchiveEntryName, outPath);
+                    }
+                    else if (item.IsSpecialFormat)
+                    {
+                        success = SpecialFormatManager.ExtractAndDecrypt(item.FilePath, item.SpecialContentOffset, item.SpecialContentSize, outPath, createBackup);
+                    }
+                    else if (item.IsEncrypted || item.NeedsCompatibilityPatch)
+                    {
+                        success = DsiDecryptorEngine.DecryptFile(item.FilePath, outPath, createBackup);
+                    }
+                    else
+                    {
+                        if (!string.Equals(Path.GetFullPath(item.FilePath), Path.GetFullPath(outPath), StringComparison.OrdinalIgnoreCase))
                         {
-                            if (!string.Equals(Path.GetFullPath(item.FilePath), Path.GetFullPath(outPath), StringComparison.OrdinalIgnoreCase))
-                            {
-                                var dir = Path.GetDirectoryName(outPath);
-                                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                                File.Copy(item.FilePath, outPath, true);
-                            }
-                            success = true;
+                            var dir = Path.GetDirectoryName(outPath);
+                            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                            File.Copy(item.FilePath, outPath, true);
                         }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"Error copying file: {ex.Message}");
-                            success = false;
-                        }
-                        sw.Stop();
-                        elapsedMs = sw.ElapsedMilliseconds;
-                    });
+                        success = true;
+                    }
                 }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Process Error {item.FilePath}]: {ex.Message}");
+                    success = false;
+                }
+                sw.Stop();
+                elapsedMs = sw.ElapsedMilliseconds;
+
+                item.IsProcessing = false;
 
                 if (success)
                 {
@@ -1051,7 +1111,6 @@ public partial class MainWindow : Window
                         : (neededPatch ? LocalizationManager.Get("StatusPatched") : LocalizationManager.Get("StatusCopied"));
                     item.Status = $"{statusText} ({elapsedMs} мс)";
 
-                    // Record to persistent history
                     HistoryManager.Add(new HistoryItem
                     {
                         FilePath = item.FilePath,
@@ -1062,7 +1121,8 @@ public partial class MainWindow : Window
                         ProcessedAt = DateTime.Now,
                         Status = statusText,
                         ElapsedMs = elapsedMs,
-                        OutPath = outPath
+                        OutPath = outPath,
+                        BannerIconPng = item.BannerIconPng
                     });
                 }
                 else
@@ -1072,16 +1132,21 @@ public partial class MainWindow : Window
                         : (neededPatch ? LocalizationManager.Get("StatusFailed") : LocalizationManager.Get("StatusCopyFailed"));
                 }
 
-                processed++;
-                ProgBar.Value = processed;
-            }
+                int currentCount = Interlocked.Increment(ref processed);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ProgBar.Value = currentCount;
+                    TbProgress.ProgressValue = (double)currentCount / gamesToProcess.Count;
+                    TxtStatusLog.Text = $"Обработано: {currentCount}/{gamesToProcess.Count} ({outFileName})...";
+                });
+            });
         }
         finally
         {
             totalSw.Stop();
+            TbProgress.ProgressState = System.Windows.Shell.TaskbarItemProgressState.None;
             UpdateStats();
             UpdateHistoryStats();
-        StateChanged += MainWindow_StateChanged;
 
             BtnDecrypt.IsEnabled = true;
             BtnAddFiles.IsEnabled = true;
@@ -1096,7 +1161,6 @@ public partial class MainWindow : Window
             LocalizationManager.Get("AppTitle"),
             MessageBoxButton.OK,
             MessageBoxImage.Information);
-
     }
 
     // --- Queue Management ---

@@ -1,7 +1,7 @@
 <Window x:Class="StormDsiDecryptor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="STORM DSI DECRYPTOR 1.1.9"
+        Title="STORM DSI DECRYPTOR 1.2.0"
         Height="800" Width="1280"
         MinHeight="680" MinWidth="1140"
         WindowStartupLocation="CenterScreen"
@@ -17,6 +17,10 @@
         PreviewDragEnter="Window_PreviewDragEnter"
         PreviewDragOver="Window_PreviewDragOver"
         PreviewDrop="Window_PreviewDrop">
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo x:Name="TbProgress" />
+    </Window.TaskbarItemInfo>
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="42"
@@ -515,7 +519,7 @@
                 <TextBlock FontSize="13.5" VerticalAlignment="Center">
                     <Run Text="STORM" FontWeight="Black" Foreground="{DynamicResource ThemeAccent}" />
                     <Run Text=" DSI DECRYPTOR" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
-                    <Run Text=" 1.1.9" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
+                    <Run Text=" 1.2.0" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
                 </TextBlock>
             </StackPanel>
 
@@ -715,6 +719,17 @@
                                     </ContextMenu>
                                 </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
+                                    <DataGridTemplateColumn x:Name="ColIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Image Source="{Binding BannerIcon}" Width="26" Height="26"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                       SnapsToDevicePixels="True" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
                                     <DataGridTextColumn x:Name="ColFileName" Header="Имя файла" Binding="{Binding FileName}" Width="250">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
@@ -810,6 +825,17 @@
                                       RowHeight="36"
                                       PreviewKeyDown="GridHistory_PreviewKeyDown">
                                 <DataGrid.Columns>
+                                    <DataGridTemplateColumn x:Name="ColHistIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Image Source="{Binding BannerIcon}" Width="26" Height="26"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                       SnapsToDevicePixels="True" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
                                     <DataGridTextColumn x:Name="ColHistDate" Header="Дата обработки" Binding="{Binding ProcessedAtFormatted}" Width="150">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
@@ -898,7 +924,8 @@
                             <!-- Mode CheckBoxes -->
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                 <CheckBox x:Name="ChkCopy" IsChecked="True" Content="📦 Создавать копию" Margin="0,0,20,0" Click="ChkCopy_Click" />
-                                <CheckBox x:Name="ChkInPlace" IsChecked="False" Content="🔄 Перезаписывать оригиналы на месте" Margin="0,0,20,0" Click="ChkInPlace_Click" />
+                                <CheckBox x:Name="ChkInPlace" IsChecked="False" Content="🔄 Перезаписывать оригиналы на месте" Margin="0,0,16,0" Click="ChkInPlace_Click" />
+                                <CheckBox x:Name="ChkBackup" IsChecked="False" Content="🛡️ Бэкап .bak" Margin="0,0,16,0" ToolTip="Создавать резервную копию оригинала (.bak) при перезаписи на месте" />
                             </StackPanel>
 
                             <!-- Output Folder Selection -->
