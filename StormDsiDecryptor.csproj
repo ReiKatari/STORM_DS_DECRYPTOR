@@ -30,6 +30,7 @@
     <None Remove="Installer\**" />
     <EmbeddedResource Remove="Installer\**" />
     <Resource Include="AppIcon.ico" />
+    <Resource Include="app_icon.png" />
   </ItemGroup>
 
   <ItemGroup>

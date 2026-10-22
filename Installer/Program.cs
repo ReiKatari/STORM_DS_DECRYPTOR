@@ -404,7 +404,7 @@ namespace StormUniversal.Installer
                     if (name.EndsWith(IcoName, StringComparison.OrdinalIgnoreCase) || name.EndsWith("app.ico", StringComparison.OrdinalIgnoreCase))
                     {
                         using var s = asm.GetManifestResourceStream(name);
-                        if (s != null) { this.Icon = new Icon(s); break; }
+                        if (s != null) { this.Icon = new Icon(s, 256, 256); break; }
                     }
                 }
                 if (this.Icon == null && File.Exists(Application.ExecutablePath))
@@ -475,7 +475,38 @@ namespace StormUniversal.Installer
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.Transparent
             };
-            if (this.Icon != null) picLogo.Image = this.Icon.ToBitmap();
+
+            Image? hiResLogo = null;
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+                foreach (var resName in asm.GetManifestResourceNames())
+                {
+                    if (resName.EndsWith("app_icon.png", StringComparison.OrdinalIgnoreCase) || resName.EndsWith("logo.png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        using var s = asm.GetManifestResourceStream(resName);
+                        if (s != null)
+                        {
+                            hiResLogo = Image.FromStream(s);
+                            break;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            picLogo.Paint += (s, e) =>
+            {
+                var imgToDraw = hiResLogo ?? (this.Icon != null ? this.Icon.ToBitmap() : null);
+                if (imgToDraw != null)
+                {
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
+                    e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    e.Graphics.CompositingQuality = CompositingQuality.HighQuality;
+                    e.Graphics.DrawImage(imgToDraw, picLogo.ClientRectangle);
+                }
+            };
             headerPanel.Controls.Add(picLogo);
 
             lblTitle = new Label
@@ -1007,6 +1038,7 @@ namespace StormUniversal.Installer
                 ExtractResource("AppIcon.ico", targetIco);
                 ExtractResource("app.ico", targetIco);
                 ExtractResource("logo.png", Path.Combine(targetDir, "logo.png"));
+                ExtractResource("app_icon.png", Path.Combine(targetDir, "app_icon.png"));
 
                 if (rbPortable.Checked)
                 {
