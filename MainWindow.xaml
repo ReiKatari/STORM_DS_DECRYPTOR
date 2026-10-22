@@ -1,7 +1,7 @@
 <Window x:Class="StormDsiDecryptor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="STORM DSI DECRYPTOR 1.2.0"
+        Title="STORM DSI DECRYPTOR 1.2.1"
         Height="800" Width="1280"
         MinHeight="680" MinWidth="1140"
         WindowStartupLocation="CenterScreen"
@@ -31,6 +31,47 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+            <!-- STORM Aurora Fluid Volumetric Universal ToolTip Style for all themes -->
+            <Style TargetType="ToolTip">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="HasDropShadow" Value="True" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
+                <Setter Property="FontFamily" Value="{DynamicResource StormFontFamily}" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Setter Property="UseLayoutRounding" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border x:Name="TooltipBorder"
+                                    Background="{DynamicResource ThemeCardBg}"
+                                    BorderBrush="{DynamicResource ThemeCardBorder}"
+                                    BorderThickness="1.2"
+                                    CornerRadius="8"
+                                    Padding="12,8"
+                                    MaxWidth="480"
+                                    SnapsToDevicePixels="True">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="4" Opacity="0.55" Color="#000000" />
+                                </Border.Effect>
+                                <Grid>
+                                    <!-- Top specular highlight line for 3D volumetric glass look -->
+                                    <Border VerticalAlignment="Top" Height="1" CornerRadius="6,6,0,0"
+                                            Background="#25FFFFFF" Margin="0,-4,0,0" />
+                                    <ContentPresenter Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      RecognizesAccessKey="False" />
+                                </Grid>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Global Neon Solid Square CheckBox Style -->
         <!-- 3D Card Style -->
         <Style x:Key="StormCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource ThemeCardBg}" />
@@ -514,12 +555,12 @@
             </Grid.ColumnDefinitions>
 
             <!-- Title & Icon -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" ToolTip="STORM DSi DECRYPTOR — Сверхбыстрая утилита расшифровки Modcrypt">
                 <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
                 <TextBlock FontSize="13.5" VerticalAlignment="Center">
                     <Run Text="STORM" FontWeight="Black" Foreground="{DynamicResource ThemeAccent}" />
                     <Run Text=" DSI DECRYPTOR" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
-                    <Run Text=" 1.2.0" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
+                    <Run Text=" 1.2.1" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
                 </TextBlock>
             </StackPanel>
 
@@ -574,22 +615,22 @@
                     <!-- Language Selector (11 Languages) -->
                     <StackPanel Orientation="Vertical" Margin="0,0,10,0">
                         <TextBlock x:Name="LblLang" Text="🌐 Язык" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbLang" Style="{StaticResource StormComboBox}" Width="145" Height="30" SelectionChanged="CmbLang_SelectionChanged" />
+                        <ComboBox x:Name="CmbLang" ToolTip="Выбор языка интерфейса (11 поддерживаемых языков, по умолчанию язык ОС)" Style="{StaticResource StormComboBox}" Width="145" Height="30" SelectionChanged="CmbLang_SelectionChanged" />
                     </StackPanel>
                     <!-- Theme Selector (9 Themes) -->
                     <StackPanel Orientation="Vertical" Margin="0,0,10,0">
                         <TextBlock x:Name="LblTheme" Text="🎨 Тема" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbTheme" Style="{StaticResource StormComboBox}" Width="190" Height="30" SelectionChanged="CmbTheme_SelectionChanged" />
+                        <ComboBox x:Name="CmbTheme" ToolTip="Выбор темы оформления интерфейса (9 тем, по умолчанию MIDNIGHT)" Style="{StaticResource StormComboBox}" Width="190" Height="30" SelectionChanged="CmbTheme_SelectionChanged" />
                     </StackPanel>
                     <!-- Accent Selector (13 Accents) -->
                     <StackPanel Orientation="Vertical" Margin="0,0,10,0">
                         <TextBlock x:Name="LblAccent" Text="✨ Акцент" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbAccent" Style="{StaticResource StormComboBox}" Width="165" Height="30" SelectionChanged="CmbAccent_SelectionChanged" />
+                        <ComboBox x:Name="CmbAccent" ToolTip="Выбор акцентного цвета подсветки и элементов (13 вариантов)" Style="{StaticResource StormComboBox}" Width="165" Height="30" SelectionChanged="CmbAccent_SelectionChanged" />
                     </StackPanel>
                     <!-- Font Selector (10 Fonts) -->
                     <StackPanel Orientation="Vertical">
                         <TextBlock x:Name="LblFont" Text="🔤 Шрифт" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbFont" Style="{StaticResource StormComboBox}" Width="150" Height="30" SelectionChanged="CmbFont_SelectionChanged" />
+                        <ComboBox x:Name="CmbFont" ToolTip="Выбор шрифта интерфейса (10 современных шрифтов)" Style="{StaticResource StormComboBox}" Width="150" Height="30" SelectionChanged="CmbFont_SelectionChanged" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
@@ -722,7 +763,7 @@
                                     <DataGridTemplateColumn x:Name="ColIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Image Source="{Binding BannerIcon}" Width="26" Height="26"
+                                                <Image Source="{Binding BannerIcon}" ToolTip="{Binding GameTitle}" Width="26" Height="26"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        RenderOptions.BitmapScalingMode="NearestNeighbor"
                                                        SnapsToDevicePixels="True" />
@@ -828,7 +869,7 @@
                                     <DataGridTemplateColumn x:Name="ColHistIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Image Source="{Binding BannerIcon}" Width="26" Height="26"
+                                                <Image Source="{Binding BannerIcon}" ToolTip="{Binding GameTitle}" Width="26" Height="26"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        RenderOptions.BitmapScalingMode="NearestNeighbor"
                                                        SnapsToDevicePixels="True" />
@@ -923,9 +964,9 @@
 
                             <!-- Mode CheckBoxes -->
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <CheckBox x:Name="ChkCopy" IsChecked="True" Content="📦 Создавать копию" Margin="0,0,20,0" Click="ChkCopy_Click" />
-                                <CheckBox x:Name="ChkInPlace" IsChecked="False" Content="🔄 Перезаписывать оригиналы на месте" Margin="0,0,16,0" Click="ChkInPlace_Click" />
-                                <CheckBox x:Name="ChkBackup" IsChecked="False" Content="🛡️ Бэкап .bak" Margin="0,0,16,0" ToolTip="Создавать резервную копию оригинала (.bak) при перезаписи на месте" />
+                                <CheckBox x:Name="ChkCopy" ToolTip="Режим создания копии — Сохранять расшифрованные образы в выбранную папку, не изменяя оригиналы" IsChecked="True" Content="📦 Создавать копию" Margin="0,0,20,0" Click="ChkCopy_Click" />
+                                <CheckBox x:Name="ChkInPlace" ToolTip="Режим перезаписи на месте — Атомарно перезаписывать исходные файлы расшифрованными образами" IsChecked="False" Content="🔄 Перезаписывать оригиналы на месте" Margin="0,0,16,0" Click="ChkInPlace_Click" />
+                                <CheckBox x:Name="ChkBackup" IsChecked="False" Content="🛡️ Бэкап .bak" Margin="0,0,16,0" Click="ChkBackup_Click" ToolTip="Создавать резервную копию оригинала (.bak) при перезаписи на месте" />
                             </StackPanel>
 
                             <!-- Output Folder Selection -->
@@ -969,7 +1010,7 @@
                                     </Grid>
                                 </Border>
 
-                                <Button x:Name="BtnBrowseOutFolder" Grid.Column="2" Content="📂 Обзор..." Style="{StaticResource StormButton}"
+                                <Button x:Name="BtnBrowseOutFolder" ToolTip="Выбрать папку для сохранения расшифрованных копий" Grid.Column="2" Content="📂 Обзор..." Style="{StaticResource StormButton}"
                                         Height="32" Padding="12,0" Margin="6,0,0,0" Click="BtnBrowseOutFolder_Click" />
 
                                 <Button x:Name="BtnResetOutFolder" Grid.Column="3" Content="✕" ToolTip="Сбросить на папку по умолчанию"
@@ -986,19 +1027,19 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Button x:Name="BtnAddFiles" Content="📂 Добавить файлы" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFiles_Click" />
-                                <Button x:Name="BtnAddFolder" Content="🗂️ Добавить папку" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFolder_Click" />
-                                <Button x:Name="BtnClear" Content="🗑️ Очистить список" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnClear_Click" />
+                                <Button x:Name="BtnAddFiles" ToolTip="Добавить файлы — Выбрать ROM-файлы (.nds, .dsi, .app, .cia, .tad) или архивы (.zip, .7z, .rar)" Content="📂 Добавить файлы" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFiles_Click" />
+                                <Button x:Name="BtnAddFolder" ToolTip="Добавить папку — Рекурсивно найти все поддерживаемые игры в выбранной папке" Content="🗂️ Добавить папку" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFolder_Click" />
+                                <Button x:Name="BtnClear" ToolTip="Очистить список — Удалить все игры из текущей очереди обработки" Content="🗑️ Очистить список" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnClear_Click" />
                             </StackPanel>
 
                             <!-- Progress Bar -->
                             <Grid Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
-                                <ProgressBar x:Name="ProgBar" Height="14" Minimum="0" Maximum="100" Value="0" Background="#1AFFFFFF" Foreground="{DynamicResource ThemeAccent}" BorderThickness="0" />
+                                <ProgressBar x:Name="ProgBar" ToolTip="Индикатор выполнения текущей операции расшифровки" Height="14" Minimum="0" Maximum="100" Value="0" Background="#1AFFFFFF" Foreground="{DynamicResource ThemeAccent}" BorderThickness="0" />
                             </Grid>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <Button x:Name="BtnDecrypt" Content="⚡ Расшифровать все" Style="{StaticResource StormHeroButton}" Margin="0,0,8,0" Click="BtnDecrypt_Click" />
-                                <Button x:Name="BtnOpenFolder" Content="🚪 Открыть папку" Style="{StaticResource StormButton}" Click="BtnOpenFolder_Click" />
+                                <Button x:Name="BtnDecrypt" ToolTip="⚡ Начать расшифровку — Запустить многопоточную параллельную обработку всех игр в очереди" Content="⚡ Расшифровать все" Style="{StaticResource StormHeroButton}" Margin="0,0,8,0" Click="BtnDecrypt_Click" />
+                                <Button x:Name="BtnOpenFolder" ToolTip="Открыть папку сохранения — Перейти к каталогу с сохранёнными файлами в Проводнике" Content="🚪 Открыть папку" Style="{StaticResource StormButton}" Click="BtnOpenFolder_Click" />
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -1011,12 +1052,12 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnClearHistory" Content="🗑️ Очистить историю" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnClearHistory_Click" />
-                            <Button x:Name="BtnDeleteHistory" Content="✖ Удалить выбранное" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnDeleteHistory_Click" />
+                            <Button x:Name="BtnClearHistory" ToolTip="Очистить историю — Удалить все записи из журнала обработки" Content="🗑️ Очистить историю" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnClearHistory_Click" />
+                            <Button x:Name="BtnDeleteHistory" ToolTip="Удалить выбранные записи из истории (Del)" Content="✖ Удалить выбранное" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnDeleteHistory_Click" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnOpenHistoryFolder" Content="📂 Показать в проводнике" Style="{StaticResource StormHeroButton}" Click="BtnOpenHistoryFolder_Click" />
+                            <Button x:Name="BtnOpenHistoryFolder" ToolTip="Открыть выбранный файл в Проводнике Windows" Content="📂 Показать в проводнике" Style="{StaticResource StormHeroButton}" Click="BtnOpenHistoryFolder_Click" />
                         </StackPanel>
                     </Grid>
                 </Grid>
@@ -1030,8 +1071,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" x:Name="TxtStatusLog" Text="Готово к работе" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnCheckUpdates" Content="🔄 Обновления" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,8,0" Click="BtnCheckUpdates_Click" />
-                    <Button x:Name="BtnAbout" Content="ℹ️ О программе" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Click="BtnAbout_Click" />
+                    <Button x:Name="BtnCheckUpdates" ToolTip="Проверить наличие новой версии программы на GitHub" Content="🔄 Обновления" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,8,0" Click="BtnCheckUpdates_Click" />
+                    <Button x:Name="BtnAbout" ToolTip="Информация о программе, версии и авторах" Content="ℹ️ О программе" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Click="BtnAbout_Click" />
                 </StackPanel>
             </Grid>
         </Grid>

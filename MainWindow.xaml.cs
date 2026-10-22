@@ -54,40 +54,79 @@ public partial class MainWindow : Window
         // Init System Tray
         InitSystemTray();
 
-        // Init themes (9 Themes, MIDNIGHT default)
-        foreach (var theme in ThemeManager.Themes)
+        // Load persistent user settings
+        SettingsManager.Load();
+
+        // Restore custom output folder if previously set and exists
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.OutputDirectory) && Directory.Exists(SettingsManager.Current.OutputDirectory))
         {
-            CmbTheme.Items.Add(theme.DisplayName);
+            _customOutputDir = SettingsManager.Current.OutputDirectory;
+            TxtOutFolder.Text = _customOutputDir;
+            TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
         }
-        CmbTheme.SelectedIndex = 0;
+
+        // Restore processing mode & backup setting
+        if (SettingsManager.Current.IsInPlace)
+        {
+            ChkInPlace.IsChecked = true;
+            ChkCopy.IsChecked = false;
+        }
+        else
+        {
+            ChkCopy.IsChecked = true;
+            ChkInPlace.IsChecked = false;
+        }
+        ChkBackup.IsChecked = SettingsManager.Current.CreateBackup;
+
+        // Init themes (9 Themes, MIDNIGHT default)
+        int selectedThemeIdx = 0;
+        for (int i = 0; i < ThemeManager.Themes.Count; i++)
+        {
+            var theme = ThemeManager.Themes[i];
+            CmbTheme.Items.Add(theme.DisplayName);
+            if (!string.IsNullOrWhiteSpace(SettingsManager.Current.ThemeName) &&
+                theme.Name.Equals(SettingsManager.Current.ThemeName, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedThemeIdx = i;
+            }
+        }
+        CmbTheme.SelectedIndex = selectedThemeIdx;
+        ThemeManager.ApplyTheme(ThemeManager.Themes[selectedThemeIdx].Name);
 
         // Init accents (13 Accents, Violet default)
         foreach (var acc in ThemeManager.Accents)
         {
             CmbAccent.Items.Add(acc.Name);
         }
-        CmbAccent.SelectedIndex = 0;
+        int selectedAccent = Math.Clamp(SettingsManager.Current.AccentIndex, 0, ThemeManager.Accents.Length - 1);
+        CmbAccent.SelectedIndex = selectedAccent;
+        ThemeManager.ApplyAccent(selectedAccent);
 
         // Init fonts (10 Fonts, Inter Variable default)
         foreach (var font in ThemeManager.Fonts)
         {
             CmbFont.Items.Add(font.DisplayName);
         }
-        CmbFont.SelectedIndex = 0;
+        int selectedFont = Math.Clamp(SettingsManager.Current.FontIndex, 0, ThemeManager.Fonts.Length - 1);
+        CmbFont.SelectedIndex = selectedFont;
+        ThemeManager.ApplyFont(selectedFont);
 
-        // Init languages (11 Languages, OS default)
-        string sysLang = LocalizationManager.DetectSystemLanguage();
+        // Init languages (11 Languages, OS default or saved)
+        string activeLang = !string.IsNullOrWhiteSpace(SettingsManager.Current.LanguageCode)
+            ? SettingsManager.Current.LanguageCode
+            : LocalizationManager.DetectSystemLanguage();
+
         int langIdx = 0;
         for (int i = 0; i < LocalizationManager.Languages.Length; i++)
         {
             var l = LocalizationManager.Languages[i];
             CmbLang.Items.Add(l.DisplayName);
-            if (l.Code == sysLang)
+            if (l.Code.Equals(activeLang, StringComparison.OrdinalIgnoreCase))
             {
                 langIdx = i;
             }
         }
-        LocalizationManager.CurrentLanguage = sysLang;
+        LocalizationManager.CurrentLanguage = LocalizationManager.Languages[langIdx].Code;
         CmbLang.SelectedIndex = langIdx;
 
         UpdateLocalization();
@@ -112,7 +151,7 @@ public partial class MainWindow : Window
         {
             _notifyIcon = new System.Windows.Forms.NotifyIcon
             {
-                Text = "STORM DSI DECRYPTOR 1.1.9",
+                Text = "STORM DSI DECRYPTOR 1.2.1",
                 Visible = true
             };
 
@@ -353,6 +392,26 @@ public partial class MainWindow : Window
         BtnClear.ToolTip = LocalizationManager.Get("ToolTipClearList");
         BtnDecrypt.ToolTip = LocalizationManager.Get("ToolTipDecryptAll");
         BtnOpenFolder.ToolTip = LocalizationManager.Get("ToolTipOpenFolder");
+        ChkCopy.ToolTip = LocalizationManager.Get("ToolTipModeCopy");
+        ChkInPlace.ToolTip = LocalizationManager.Get("ToolTipModeInPlace");
+        ChkBackup.ToolTip = LocalizationManager.Get("ToolTipBackup");
+        BorderOutFolder.ToolTip = LocalizationManager.Get("ToolTipOutFolder");
+        BtnBrowseOutFolder.ToolTip = LocalizationManager.Get("ToolTipBrowseFolder");
+        BtnResetOutFolder.ToolTip = LocalizationManager.Get("ResetOutputFolderTooltip");
+        BtnMinimize.ToolTip = LocalizationManager.Get("ToolTipMinimize");
+        BtnMaximize.ToolTip = LocalizationManager.Get("ToolTipMaximize");
+        BtnClose.ToolTip = LocalizationManager.Get("ToolTipClose");
+        TabBtnQueue.ToolTip = LocalizationManager.Get("ToolTipTabQueue");
+        TabBtnHistory.ToolTip = LocalizationManager.Get("ToolTipTabHistory");
+        BtnClearHistory.ToolTip = LocalizationManager.Get("ToolTipClearHistory");
+        BtnDeleteHistory.ToolTip = LocalizationManager.Get("ToolTipDeleteHistory");
+        BtnOpenHistoryFolder.ToolTip = LocalizationManager.Get("ShowInExplorer");
+        CmbTheme.ToolTip = LocalizationManager.Get("ToolTipTheme");
+        CmbAccent.ToolTip = LocalizationManager.Get("ToolTipAccent");
+        CmbFont.ToolTip = LocalizationManager.Get("ToolTipFont");
+        CmbLang.ToolTip = LocalizationManager.Get("ToolTipLang");
+        BtnCheckUpdates.ToolTip = LocalizationManager.Get("ToolTipCheckUpdates");
+        BtnAbout.ToolTip = LocalizationManager.Get("ToolTipAbout");
 
         ChkCopy.Content = LocalizationManager.Get("ModeCopy");
         ChkInPlace.Content = LocalizationManager.Get("ModeInPlace");
@@ -517,6 +576,8 @@ public partial class MainWindow : Window
     {
         ChkCopy.IsChecked = true;
         ChkInPlace.IsChecked = false;
+        SettingsManager.Current.IsInPlace = false;
+        SettingsManager.Save();
         UpdateModeUI();
     }
 
@@ -524,7 +585,15 @@ public partial class MainWindow : Window
     {
         ChkInPlace.IsChecked = true;
         ChkCopy.IsChecked = false;
+        SettingsManager.Current.IsInPlace = true;
+        SettingsManager.Save();
         UpdateModeUI();
+    }
+
+    private void ChkBackup_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsManager.Current.CreateBackup = ChkBackup.IsChecked == true;
+        SettingsManager.Save();
     }
 
     private void UpdateModeUI()
@@ -557,6 +626,8 @@ public partial class MainWindow : Window
             _customOutputDir = dlg.FolderName;
             TxtOutFolder.Text = _customOutputDir;
             TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
+            SettingsManager.Current.OutputDirectory = _customOutputDir;
+            SettingsManager.Save();
         }
     }
 
@@ -565,6 +636,8 @@ public partial class MainWindow : Window
         _customOutputDir = null;
         TxtOutFolder.Text = LocalizationManager.Get("OutputFolderDefault");
         TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextSecondary");
+        SettingsManager.Current.OutputDirectory = string.Empty;
+        SettingsManager.Save();
     }
 
     private void BorderOutFolder_DragEnter(object sender, DragEventArgs e)
@@ -607,6 +680,8 @@ public partial class MainWindow : Window
                     TxtOutFolder.Text = _customOutputDir;
                     TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
                     TxtStatusLog.Text = $"Папка сохранения: {_customOutputDir}";
+                    SettingsManager.Current.OutputDirectory = _customOutputDir;
+                    SettingsManager.Save();
                 }
             }
         }
@@ -1003,6 +1078,8 @@ public partial class MainWindow : Window
                 _customOutputDir = dlg.FolderName;
                 TxtOutFolder.Text = _customOutputDir;
                 TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
+                SettingsManager.Current.OutputDirectory = _customOutputDir;
+                SettingsManager.Save();
             }
             else
             {
@@ -1307,6 +1384,8 @@ public partial class MainWindow : Window
         if (CmbTheme.SelectedIndex >= 0 && CmbTheme.SelectedIndex < ThemeManager.Themes.Count)
         {
             ThemeManager.ApplyTheme(ThemeManager.Themes[CmbTheme.SelectedIndex].Name);
+            SettingsManager.Current.ThemeName = ThemeManager.Themes[CmbTheme.SelectedIndex].Name;
+            SettingsManager.Save();
         }
     }
 
@@ -1315,6 +1394,8 @@ public partial class MainWindow : Window
         if (CmbAccent.SelectedIndex >= 0 && CmbAccent.SelectedIndex < ThemeManager.Accents.Length)
         {
             ThemeManager.ApplyAccent(CmbAccent.SelectedIndex);
+            SettingsManager.Current.AccentIndex = CmbAccent.SelectedIndex;
+            SettingsManager.Save();
         }
     }
 
@@ -1323,6 +1404,8 @@ public partial class MainWindow : Window
         if (CmbFont.SelectedIndex >= 0 && CmbFont.SelectedIndex < ThemeManager.Fonts.Length)
         {
             ThemeManager.ApplyFont(CmbFont.SelectedIndex);
+            SettingsManager.Current.FontIndex = CmbFont.SelectedIndex;
+            SettingsManager.Save();
         }
     }
 
@@ -1331,6 +1414,8 @@ public partial class MainWindow : Window
         if (CmbLang.SelectedIndex >= 0 && CmbLang.SelectedIndex < LocalizationManager.Languages.Length)
         {
             LocalizationManager.CurrentLanguage = LocalizationManager.Languages[CmbLang.SelectedIndex].Code;
+            SettingsManager.Current.LanguageCode = LocalizationManager.CurrentLanguage;
+            SettingsManager.Save();
             UpdateLocalization();
             foreach (var item in _games)
             {
