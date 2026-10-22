@@ -1,0 +1,36 @@
+# STORM Clean Git Standard - Build & Output
+bin/
+obj/
+publish/
+Installer/bin/
+Installer/obj/
+Installer/publish/
+Installer/Payload/
+*.exe
+*.dll
+*.zip
+*.pdb
+*.tmp
+*.bak
+*.log
+.vs/
+.idea/
+*.user
+
+# STORM Secrets & Keys (Never commit to Git)
+*.jks
+*.keystore
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+*signing.properties
+local.properties
+.storm-secrets/
+
+# Temporary / Scratch
+test_*
+temp_*
+scratch*
