@@ -1,1080 +1,877 @@
-<Window x:Class="StormDsiDecryptor.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="STORM DSI DECRYPTOR 1.2.1"
-        Height="800" Width="1280"
-        MinHeight="680" MinWidth="1140"
-        WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource ThemeBg}"
-        Foreground="{DynamicResource ThemeTextPrimary}"
-        FontFamily="{DynamicResource StormFontFamily}"
-        Icon="AppIcon.ico"
-        AllowDrop="True"
-        DragEnter="Window_DragEnter"
-        DragOver="Window_DragOver"
-        DragLeave="Window_DragLeave"
-        Drop="Window_Drop"
-        PreviewDragEnter="Window_PreviewDragEnter"
-        PreviewDragOver="Window_PreviewDragOver"
-        PreviewDrop="Window_PreviewDrop">
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="StormDsDecryptor.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:StormDsDecryptor"
+    Title="STORM DS DECRYPTOR 1.3.0"
+    mc:Ignorable="d">
 
-    <Window.TaskbarItemInfo>
-        <TaskbarItemInfo x:Name="TbProgress" />
-    </Window.TaskbarItemInfo>
+    <Page x:Name="RootPage"
+          Background="{StaticResource BgPrimaryBrush}"
+          FontFamily="{StaticResource AppFontFamily}">
+    <Grid x:Name="RootGrid"
+          Background="{StaticResource BgPrimaryBrush}"
+          AllowDrop="True"
+          DragOver="RootGrid_DragOver"
+          Drop="RootGrid_Drop"
+          KeyDown="RootGrid_KeyDown">
 
-    <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="42"
-                      CornerRadius="0"
-                      GlassFrameThickness="0"
-                      ResizeBorderThickness="6"
-                      UseAeroCaptionButtons="False" />
-    </WindowChrome.WindowChrome>
-
-    <Window.Resources>
-            <!-- STORM Aurora Fluid Volumetric Universal ToolTip Style for all themes -->
-            <Style TargetType="ToolTip">
-                <Setter Property="OverridesDefaultStyle" Value="True" />
-                <Setter Property="HasDropShadow" Value="True" />
-                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                <Setter Property="FontFamily" Value="{DynamicResource StormFontFamily}" />
-                <Setter Property="FontSize" Value="12.5" />
-                <Setter Property="FontWeight" Value="Normal" />
-                <Setter Property="SnapsToDevicePixels" Value="True" />
-                <Setter Property="UseLayoutRounding" Value="True" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ToolTip">
-                            <Border x:Name="TooltipBorder"
-                                    Background="{DynamicResource ThemeCardBg}"
-                                    BorderBrush="{DynamicResource ThemeCardBorder}"
-                                    BorderThickness="1.2"
-                                    CornerRadius="8"
-                                    Padding="12,8"
-                                    MaxWidth="480"
-                                    SnapsToDevicePixels="True">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="4" Opacity="0.55" Color="#000000" />
-                                </Border.Effect>
-                                <Grid>
-                                    <!-- Top specular highlight line for 3D volumetric glass look -->
-                                    <Border VerticalAlignment="Top" Height="1" CornerRadius="6,6,0,0"
-                                            Background="#25FFFFFF" Margin="0,-4,0,0" />
-                                    <ContentPresenter Content="{TemplateBinding Content}"
-                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                      HorizontalAlignment="Left"
-                                                      VerticalAlignment="Center"
-                                                      RecognizesAccessKey="False" />
-                                </Grid>
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+        <Grid.Resources>
+            <!-- Stretch ListView Items with zero default margin/padding -->
+            <Style x:Key="TableListViewItemStyle" TargetType="ListViewItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="MinHeight" Value="48" />
             </Style>
+        </Grid.Resources>
 
-            <!-- Global Neon Solid Square CheckBox Style -->
-        <!-- 3D Card Style -->
-        <Style x:Key="StormCard" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource ThemeCardBg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="BorderThickness" Value="1.2" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="3" Opacity="0.4" Color="#000000" />
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Vector Icon Geometries for Window Control Buttons -->
-        <Geometry x:Key="IconMinimize">M 0 0 L 10 0</Geometry>
-        <Geometry x:Key="IconMaximize">M 0.5 0.5 L 9.5 0.5 L 9.5 9.5 L 0.5 9.5 Z</Geometry>
-        <Geometry x:Key="IconRestore">M 2.5 0.5 L 9.5 0.5 L 9.5 7.5 L 7.5 7.5 M 7.5 2.5 L 0.5 2.5 L 0.5 9.5 L 7.5 9.5 Z</Geometry>
-        <Geometry x:Key="IconClose">M 0.5 0.5 L 9.5 9.5 M 9.5 0.5 L 0.5 9.5</Geometry>
-
-        <!-- Modern Animated Window Caption Buttons -->
-        <Style x:Key="StormWindowControlButton" TargetType="Button">
-            <Setter Property="Width" Value="40" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Margin" Value="2,6" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-            <Setter Property="RenderTransform">
-                <Setter.Value>
-                    <ScaleTransform ScaleX="1" ScaleY="1" />
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
-                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeAccentGlow}" />
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <ScaleTransform ScaleX="0.92" ScaleY="0.92" />
-                                    </Setter.Value>
-                                </Setter>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Window Close Button with Crimson Glow -->
-        <Style x:Key="StormWindowCloseButton" TargetType="Button" BasedOn="{StaticResource StormWindowControlButton}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#EF4444" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#DC2626" />
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <ScaleTransform ScaleX="0.92" ScaleY="0.92" />
-                                    </Setter.Value>
-                                </Setter>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Global Theme-Compliant DataGrid Styles (100% Contrast, Zero Black Text, Visible Vertical Dividers) -->
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="GridLinesVisibility" Value="All" />
-            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="HeadersVisibility" Value="Column" />
-            <Setter Property="RowBackground" Value="Transparent" />
-            <Setter Property="AlternatingRowBackground" Value="#06FFFFFF" />
-            <Setter Property="FontFamily" Value="{DynamicResource StormFontFamily}" />
-            <Setter Property="FontSize" Value="12.5" />
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="MinHeight" Value="36" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridRow">
-                        <Border x:Name="DgrBorder" Background="{TemplateBinding Background}" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeCardBorder}" SnapsToDevicePixels="True">
-                            <SelectiveScrollingGrid>
-                                <SelectiveScrollingGrid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </SelectiveScrollingGrid.ColumnDefinitions>
-                                <SelectiveScrollingGrid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </SelectiveScrollingGrid.RowDefinitions>
-                                <DataGridCellsPresenter Grid.Column="1" ItemsPanel="{TemplateBinding ItemsPanel}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                <DataGridDetailsPresenter Grid.Column="1" Grid.Row="1" SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical}, Converter={x:Static DataGrid.RowDetailsScrollingConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}" Visibility="{TemplateBinding DetailsVisibility}" />
-                                <DataGridRowHeader Grid.RowSpan="2" SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical" Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}" />
-                            </SelectiveScrollingGrid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="DgrBorder" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="DgrBorder" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
-                                <Setter TargetName="DgrBorder" Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="BorderThickness" Value="0,0,1,0" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridCell">
-                        <Border Background="{TemplateBinding Background}" BorderThickness="{TemplateBinding BorderThickness}" BorderBrush="{TemplateBinding BorderBrush}" SnapsToDevicePixels="True">
-                            <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Modern Themed ScrollBar Styles (Universal Dark Theme Scrollbars) -->
-        <Style x:Key="StormScrollBarPageButton" TargetType="{x:Type RepeatButton}">
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="IsTabStop" Value="False" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type RepeatButton}">
-                        <Border Background="Transparent" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="StormScrollBarThumb" TargetType="{x:Type Thumb}">
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="IsTabStop" Value="False" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Thumb}">
-                        <Border x:Name="ThumbBorder"
-                                Background="#35FFFFFF"
-                                CornerRadius="4"
-                                Margin="2"
-                                SnapsToDevicePixels="True" />
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource ThemeAccent}" />
-                            </Trigger>
-                            <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource ThemeAccentGlow}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="{x:Type ScrollBar}">
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Style.Triggers>
-                <Trigger Property="Orientation" Value="Vertical">
-                    <Setter Property="Width" Value="10" />
-                    <Setter Property="Height" Value="Auto" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="{x:Type ScrollBar}">
-                                <Grid x:Name="Bg" Background="Transparent" SnapsToDevicePixels="True">
-                                    <Track x:Name="PART_Track" IsDirectionReversed="True" Width="10" HorizontalAlignment="Center">
-                                        <Track.DecreaseRepeatButton>
-                                            <RepeatButton Style="{StaticResource StormScrollBarPageButton}" Command="ScrollBar.PageUpCommand" />
-                                        </Track.DecreaseRepeatButton>
-                                        <Track.Thumb>
-                                            <Thumb Style="{StaticResource StormScrollBarThumb}" />
-                                        </Track.Thumb>
-                                        <Track.IncreaseRepeatButton>
-                                            <RepeatButton Style="{StaticResource StormScrollBarPageButton}" Command="ScrollBar.PageDownCommand" />
-                                        </Track.IncreaseRepeatButton>
-                                    </Track>
-                                </Grid>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Trigger>
-                <Trigger Property="Orientation" Value="Horizontal">
-                    <Setter Property="Width" Value="Auto" />
-                    <Setter Property="Height" Value="10" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="{x:Type ScrollBar}">
-                                <Grid x:Name="Bg" Background="Transparent" SnapsToDevicePixels="True">
-                                    <Track x:Name="PART_Track" Width="Auto" Height="10" VerticalAlignment="Center">
-                                        <Track.DecreaseRepeatButton>
-                                            <RepeatButton Style="{StaticResource StormScrollBarPageButton}" Command="ScrollBar.PageLeftCommand" />
-                                        </Track.DecreaseRepeatButton>
-                                        <Track.Thumb>
-                                            <Thumb Style="{StaticResource StormScrollBarThumb}" />
-                                        </Track.Thumb>
-                                        <Track.IncreaseRepeatButton>
-                                            <RepeatButton Style="{StaticResource StormScrollBarPageButton}" Command="ScrollBar.PageRightCommand" />
-                                        </Track.IncreaseRepeatButton>
-                                    </Track>
-                                </Grid>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Theme-Compliant ComboBoxItem Style -->
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="FontFamily" Value="{DynamicResource StormFontFamily}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="Border" Background="Transparent" CornerRadius="5" Padding="{TemplateBinding Padding}" Margin="1">
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
-                                <Setter Property="Foreground" Value="{DynamicResource ThemeAccent}" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeAccentGlow}" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Rounded RadioButton -->
-        <Style x:Key="StormRadioButton" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-
-        <!-- Styled ComboBox -->
-        <Style x:Key="StormComboBox" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="Background" Value="{DynamicResource ThemeCardBg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Padding" Value="8,4,6,4" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton x:Name="ToggleButton"
-                                          Focusable="False"
-                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="Border"
-                                                Background="{DynamicResource ThemeCardBg}"
-                                                BorderBrush="{DynamicResource ThemeCardBorder}"
-                                                BorderThickness="1"
-                                                CornerRadius="7">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="24" />
-                                                </Grid.ColumnDefinitions>
-                                                <Path x:Name="Arrow"
-                                                      Grid.Column="1"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"
-                                                      Data="M 0 0 L 4 4 L 8 0 Z"
-                                                      Fill="{DynamicResource ThemeAccent}" />
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-                            <ContentPresenter Name="ContentSite"
-                                              IsHitTestVisible="False"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                              Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left" />
-                            <Popup Name="Popup"
-                                   Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Slide">
-                                <Grid Name="DropDown"
-                                      SnapsToDevicePixels="True"
-                                      MinWidth="{TemplateBinding ActualWidth}"
-                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                    <Border x:Name="DropDownBorder"
-                                            Background="{DynamicResource ThemeCardBg}"
-                                            BorderBrush="{DynamicResource ThemeAccent}"
-                                            BorderThickness="1"
-                                            CornerRadius="8"
-                                            Margin="0,4,0,0">
-                                        <Border.Effect>
-                                            <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="4" Opacity="0.6" Color="#000000" />
-                                        </Border.Effect>
-                                        <ScrollViewer Margin="4,6" SnapsToDevicePixels="True">
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                                        </ScrollViewer>
-                                    </Border>
-                                </Grid>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Styled DataGrid ColumnHeader -->
-        <Style x:Key="StormColumnHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Height" Value="36" />
-            <Setter Property="Background" Value="{DynamicResource ThemeCardBg}" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="BorderThickness" Value="0,0,1,2" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeCardBorder}" />
-            <Setter Property="Padding" Value="8,4" />
-        </Style>
-
-        <!-- Custom 3D ContextMenu Style -->
-        <Style x:Key="StormContextMenu" TargetType="ContextMenu">
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Grid.IsSharedSizeScope" Value="True" />
-            <Setter Property="HasDropShadow" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border x:Name="Border"
-                                Background="{DynamicResource ThemeCardBg}"
-                                BorderBrush="{DynamicResource ThemeAccent}"
-                                BorderThickness="1.2"
-                                CornerRadius="8"
-                                Padding="5,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="22" Direction="270" ShadowDepth="4" Opacity="0.6" Color="#000000" />
-                            </Border.Effect>
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Custom MenuItem Style -->
-        <Style x:Key="StormMenuItem" TargetType="MenuItem">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Border"
-                                Background="Transparent"
-                                CornerRadius="5"
-                                Margin="2,1"
-                                Padding="12,0,16,0">
-                            <ContentPresenter x:Name="HeaderHost"
-                                              ContentSource="Header"
-                                              RecognizesAccessKey="True"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
-                                <Setter Property="Foreground" Value="{DynamicResource ThemeAccent}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                <Setter Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Custom Menu Separator Style -->
-        <Style x:Key="StormMenuSeparator" TargetType="Separator">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Height" Value="1" />
-            <Setter Property="Margin" Value="6,4" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Background="{DynamicResource ThemeCardBorder}" HorizontalAlignment="Stretch" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
-    <Grid Background="{DynamicResource ThemeBg}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="42" /> <!-- Custom Window TitleBar -->
-            <RowDefinition Height="*" />  <!-- Main Content Body -->
+            <RowDefinition Height="38" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 1. Custom TitleBar -->
-        <Grid Grid.Row="0" Background="{DynamicResource ThemeCardBg}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Title & Icon -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" ToolTip="STORM DSi DECRYPTOR — Сверхбыстрая утилита расшифровки Modcrypt">
-                <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                <TextBlock FontSize="13.5" VerticalAlignment="Center">
-                    <Run Text="STORM" FontWeight="Black" Foreground="{DynamicResource ThemeAccent}" />
-                    <Run Text=" DSI DECRYPTOR" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
-                    <Run Text=" 1.2.1" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" />
-                </TextBlock>
-            </StackPanel>
-
-            <!-- Window Drag Area -->
-            <Border Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" />
-
-            <!-- Window Control Buttons -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0" WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button x:Name="BtnMinimize" Style="{StaticResource StormWindowControlButton}" Click="BtnMinimize_Click" ToolTip="Свернуть в панель задач">
-                    <Path Data="{StaticResource IconMinimize}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" SnapsToDevicePixels="True" VerticalAlignment="Center" />
-                </Button>
-                <Button x:Name="BtnMaximize" Style="{StaticResource StormWindowControlButton}" Click="BtnMaximize_Click" ToolTip="Развернуть на весь экран">
-                    <Path x:Name="IconMaximizePath" Data="{StaticResource IconMaximize}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" SnapsToDevicePixels="True" VerticalAlignment="Center" />
-                </Button>
-                <Button x:Name="BtnClose" Style="{StaticResource StormWindowCloseButton}" Click="BtnClose_Click" ToolTip="Свернуть в системный трей">
-                    <Path Data="{StaticResource IconClose}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" SnapsToDevicePixels="True" VerticalAlignment="Center" />
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <!-- 2. Application Body -->
-        <Grid Grid.Row="1" Margin="20,14,20,16">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" /> <!-- Header -->
-                <RowDefinition Height="Auto" /> <!-- Navigation Tabs -->
-                <RowDefinition Height="Auto" /> <!-- Stats Bar -->
-                <RowDefinition Height="*" />    <!-- Main Content (Queue / History) -->
-                <RowDefinition Height="Auto" /> <!-- Progress & Controls -->
-                <RowDefinition Height="Auto" /> <!-- Footer -->
-            </Grid.RowDefinitions>
-
-            <!-- Header: App Title, Badges, Theme, Accent, Font & Lang -->
-            <Grid Grid.Row="0" Margin="0,0,0,14">
+        <!-- ==================== ROW 0: CUSTOM WINDOW TITLE BAR (Rule 10 & 12) ==================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource BgSecondaryBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="app_icon.png" Width="40" Height="40" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                        <TextBlock FontSize="24" VerticalAlignment="Center">
-                            <Run Text="STORM" FontWeight="Black" Foreground="{DynamicResource ThemeAccent}" />
-                            <Run Text=" DSI DECRYPTOR" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" />
+                <!-- Drag Region with High-Res Icon & App Title + Version (no 'v') -->
+                <Grid x:Name="AppTitleBarDragArea" Grid.Column="0" Background="Transparent" Padding="14,0,0,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                        <Image x:Name="ImgTitleBarIcon" Width="20" Height="20" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TxtWindowTitle"
+                                   Text="STORM DS DECRYPTOR 1.3.0"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="Bold"
+                                   CharacterSpacing="35"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Custom Vector Window Caption Buttons (Minimize, Maximize/Restore, Close-to-Tray) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
+                    <Button x:Name="BtnWinMinimize"
+                            Click="BtnMinimize_Click"
+                            Width="46" Height="38"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="0"
+                            Padding="0">
+                        <Path Data="M 0,5 L 10,5"
+                              Stroke="{StaticResource TextPrimaryBrush}"
+                              StrokeThickness="1.5"
+                              Width="10" Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Button>
+                    <Button x:Name="BtnWinMaximize"
+                            Click="BtnMaximize_Click"
+                            Width="46" Height="38"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="0"
+                            Padding="0">
+                        <Path x:Name="IconMaximizePath"
+                              Data="M 0.5,0.5 L 9.5,0.5 L 9.5,9.5 L 0.5,9.5 Z"
+                              Stroke="{StaticResource TextPrimaryBrush}"
+                              StrokeThickness="1.4"
+                              Width="10" Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Button>
+                    <Button x:Name="BtnWinClose"
+                            Click="BtnClose_Click"
+                            Width="46" Height="38"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="0"
+                            Padding="0"
+                            PointerEntered="BtnWinClose_PointerEntered"
+                            PointerExited="BtnWinClose_PointerExited">
+                        <Path Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                              Stroke="{StaticResource TextPrimaryBrush}"
+                              StrokeThickness="1.6"
+                              Width="10" Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ==================== ROW 1: BRAND HEADER BANNER & APPEARANCE BAR (Rule 12) ==================== -->
+        <Border Grid.Row="1"
+                Margin="18,12,18,8"
+                Padding="18,14"
+                Background="{StaticResource BgCardBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- High-Res 48x48 App Logo + STORM (Accent) DS DECRYPTOR (No Version!) + Subtitle -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                    <Border Width="52" Height="52"
+                            CornerRadius="12"
+                            Background="{StaticResource BgSecondaryBrush}"
+                            BorderBrush="{StaticResource AccentPrimaryBrush}"
+                            BorderThickness="1.5"
+                            Padding="4">
+                        <Image x:Name="ImgHeaderLogo" Stretch="Uniform" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontSize="22" FontWeight="ExtraBold" CharacterSpacing="25">
+                            <Run Text="STORM" Foreground="{StaticResource AccentPrimaryBrush}" />
+                            <Run x:Name="RunHeaderAppName" Text=" DS DECRYPTOR" Foreground="{StaticResource TextPrimaryBrush}" />
                         </TextBlock>
-                    </StackPanel>
-                    <TextBlock x:Name="TxtSubtitle" Text="Сверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare" FontSize="12.5" Foreground="{DynamicResource ThemeTextSecondary}" Margin="54,4,0,0" />
-                </StackPanel>
-
-                <!-- Selectors: Theme, Accent, Font & Language -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Language Selector (11 Languages) -->
-                    <StackPanel Orientation="Vertical" Margin="0,0,10,0">
-                        <TextBlock x:Name="LblLang" Text="🌐 Язык" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbLang" ToolTip="Выбор языка интерфейса (11 поддерживаемых языков, по умолчанию язык ОС)" Style="{StaticResource StormComboBox}" Width="145" Height="30" SelectionChanged="CmbLang_SelectionChanged" />
-                    </StackPanel>
-                    <!-- Theme Selector (9 Themes) -->
-                    <StackPanel Orientation="Vertical" Margin="0,0,10,0">
-                        <TextBlock x:Name="LblTheme" Text="🎨 Тема" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbTheme" ToolTip="Выбор темы оформления интерфейса (9 тем, по умолчанию MIDNIGHT)" Style="{StaticResource StormComboBox}" Width="190" Height="30" SelectionChanged="CmbTheme_SelectionChanged" />
-                    </StackPanel>
-                    <!-- Accent Selector (13 Accents) -->
-                    <StackPanel Orientation="Vertical" Margin="0,0,10,0">
-                        <TextBlock x:Name="LblAccent" Text="✨ Акцент" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbAccent" ToolTip="Выбор акцентного цвета подсветки и элементов (13 вариантов)" Style="{StaticResource StormComboBox}" Width="165" Height="30" SelectionChanged="CmbAccent_SelectionChanged" />
-                    </StackPanel>
-                    <!-- Font Selector (10 Fonts) -->
-                    <StackPanel Orientation="Vertical">
-                        <TextBlock x:Name="LblFont" Text="🔤 Шрифт" FontSize="11" Foreground="{DynamicResource ThemeTextSecondary}" Margin="0,0,0,4" />
-                        <ComboBox x:Name="CmbFont" ToolTip="Выбор шрифта интерфейса (10 современных шрифтов)" Style="{StaticResource StormComboBox}" Width="150" Height="30" SelectionChanged="CmbFont_SelectionChanged" />
+                        <TextBlock x:Name="TxtSubHeader"
+                                   Text="Комплекс расшифровки Nintendo DS / DSi / DSiWare / 3DS CIA / TAD / NUS"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="Medium" />
                     </StackPanel>
                 </StackPanel>
-            </Grid>
 
-            <!-- Navigation Tabs (Queue / History) -->
-            <Grid Grid.Row="1" Margin="0,0,0,14">
-                <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="TabBtnQueue" GroupName="NavTabs" IsChecked="True" Style="{StaticResource StormTabButton}" Click="TabBtnQueue_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📋 " />
-                            <TextBlock x:Name="TxtTabQueue" Text="Очередь обработки" />
-                            <TextBlock x:Name="TxtTabQueueCount" Text=" (0)" Opacity="0.8" />
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="TabBtnHistory" GroupName="NavTabs" Style="{StaticResource StormTabButton}" Margin="10,0,0,0" Click="TabBtnHistory_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📜 " />
-                            <TextBlock x:Name="TxtTabHistory" Text="История операций" />
-                            <TextBlock x:Name="TxtTabHistoryCount" Text=" (0)" Opacity="0.8" />
-                        </StackPanel>
-                    </RadioButton>
+                <!-- Right Appearance Controls: Theme, Accent, Font, Language + About -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <!-- Theme Selector -->
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="LblTheme" Text="Тема" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbTheme" Width="136" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbTheme_SelectionChanged" />
+                    </StackPanel>
+
+                    <!-- Accent Selector -->
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="LblAccent" Text="Акцент" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbAccent" Width="116" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbAccent_SelectionChanged" />
+                    </StackPanel>
+
+                    <!-- Font Selector -->
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="LblFont" Text="Шрифт" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbFont" Width="148" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbFont_SelectionChanged" />
+                    </StackPanel>
+
+                    <!-- Language Selector -->
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="LblLang" Text="Язык" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="CmbLang" Width="138" Height="34" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbLang_SelectionChanged" />
+                    </StackPanel>
+
+                    <!-- Check Updates Button -->
+                    <Button x:Name="BtnCheckUpdate"
+                            Click="BtnCheckUpdate_Click"
+                            Height="34"
+                            Margin="0,17,0,0"
+                            Padding="12,0"
+                            Background="{StaticResource BgSecondaryBrush}"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            BorderBrush="{StaticResource BorderSubtleBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            FontWeight="SemiBold"
+                            FontSize="12.5"
+                            Content="🔄" />
+
+                    <!-- About Button -->
+                    <Button x:Name="BtnAbout"
+                            Click="BtnAbout_Click"
+                            Height="34"
+                            Margin="0,17,0,0"
+                            Padding="12,0"
+                            Background="{StaticResource AccentPrimaryBrush}"
+                            Foreground="White"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            FontWeight="Bold"
+                            FontSize="12.5"
+                            Content="?" />
                 </StackPanel>
             </Grid>
+        </Border>
 
-            <!-- Stats Counter Cards -->
-            <Grid Grid.Row="2" Margin="0,0,0,14">
-                <!-- Queue Stats Panel -->
-                <Grid x:Name="QueueStatsPanel">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+        <!-- ==================== ROW 2: MAIN WORKSPACE (TOOLBAR + TAB SWITCHER + TABLES + SETTINGS) ==================== -->
+        <Grid Grid.Row="2" Margin="18,0,18,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-                    <Border Grid.Column="0" Style="{StaticResource StormCard}" Padding="16,12" Margin="0,0,8,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblTotalGames" Text="🎮 Всего игр" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtTotalCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="1" Style="{StaticResource StormCard}" Padding="16,12" Margin="4,0,4,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblEncrypted" Text="🔐 Требуют расшифровки" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtEncryptedCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeWarning}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{StaticResource StormCard}" Padding="16,12" Margin="8,0,0,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblDecrypted" Text="⚡ Готово к запуску" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtDecryptedCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeSuccess}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <!-- History Stats Panel -->
-                <Grid x:Name="HistoryStatsPanel" Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Style="{StaticResource StormCard}" Padding="16,12" Margin="0,0,8,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblHistTotal" Text="📚 Всего в истории" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtHistTotalCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="1" Style="{StaticResource StormCard}" Padding="16,12" Margin="4,0,4,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblHistSuccess" Text="✅ Успешно расшифровано" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtHistSuccessCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeSuccess}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{StaticResource StormCard}" Padding="16,12" Margin="8,0,0,0">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LblHistReady" Text="⚡ Готово к запуску" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" />
-                            <TextBlock x:Name="TxtHistReadyCount" Text="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Grid>
-
-            <!-- Main Content Area: Queue or History -->
-            <Grid Grid.Row="3" Margin="0,0,0,14">
-                <!-- 1. QUEUE VIEW -->
-                <Grid x:Name="QueueViewPanel">
-                    <Border x:Name="DropZone" Style="{StaticResource StormCard}" Background="{DynamicResource ThemeCardBg}" BorderThickness="1.5" Cursor="Hand" MouseDown="DropZone_MouseDown"
-                            AllowDrop="True"
-                            PreviewDragEnter="Window_PreviewDragEnter"
-                            PreviewDragOver="Window_PreviewDragOver"
-                            PreviewDrop="Window_PreviewDrop">
-                        <Grid>
-                            <!-- Empty List Hint -->
-                            <StackPanel x:Name="EmptyHintPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="📂" FontSize="46" HorizontalAlignment="Center" Margin="0,0,0,12" />
-                                <TextBlock x:Name="TxtDragDropHint" Text="Перетащите сюда файлы .nds, .dsi, .app или папку с играми" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextPrimary}" HorizontalAlignment="Center" />
-                                <TextBlock Text="Либо нажмите здесь для выбора файлов вручную" FontSize="12.5" Foreground="{DynamicResource ThemeTextSecondary}" HorizontalAlignment="Center" Margin="0,6,0,0" />
-                            </StackPanel>
-
-                            <!-- Games Table -->
-                            <DataGrid x:Name="GridGames" AutoGenerateColumns="False" IsReadOnly="True"
-                                      Background="Transparent" BorderThickness="0"
-                                      RowBackground="Transparent"
-                                      AlternatingRowBackground="#08FFFFFF"
-                                      HeadersVisibility="Column"
-                                      ColumnHeaderStyle="{StaticResource StormColumnHeader}"
-                                      GridLinesVisibility="All"
-                                      HorizontalGridLinesBrush="{DynamicResource ThemeCardBorder}"
-                                      VerticalGridLinesBrush="{DynamicResource ThemeCardBorder}"
-                                      SelectionMode="Extended"
-                                      SelectionUnit="FullRow"
-                                      CanUserResizeRows="False"
-                                      CanUserSortColumns="True"
-                                      RowHeight="36"
-                                      Visibility="Collapsed"
-                                      PreviewKeyDown="GridGames_PreviewKeyDown">
-                                <DataGrid.ContextMenu>
-                                    <ContextMenu Style="{StaticResource StormContextMenu}">
-                                        <MenuItem x:Name="MenuDeleteSelected" Header="🗑️ Удалить выбранное (DEL)" Style="{StaticResource StormMenuItem}" Click="MenuDeleteSelected_Click" />
-                                        <Separator Style="{StaticResource StormMenuSeparator}" />
-                                        <MenuItem x:Name="MenuClearAll" Header="🧹 Очистить весь список" Style="{StaticResource StormMenuItem}" Click="MenuClearAll_Click" />
-                                    </ContextMenu>
-                                </DataGrid.ContextMenu>
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn x:Name="ColIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Image Source="{Binding BannerIcon}" ToolTip="{Binding GameTitle}" Width="26" Height="26"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                       SnapsToDevicePixels="True" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTextColumn x:Name="ColFileName" Header="Имя файла" Binding="{Binding FileName}" Width="250">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Margin" Value="10,0" />
-                                                <Setter Property="FontWeight" Value="Medium" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColTitle" Header="Название игры" Binding="{Binding GameTitle}" Width="*">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Margin" Value="10,0" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColCode" Header="Код" Binding="{Binding GameCode}" Width="90">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="FontFamily" Value="Consolas, monospace" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColSize" Header="Размер" Binding="{Binding FileSizeFormatted}" Width="100">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTemplateColumn x:Name="ColStatus" Header="Статус" Width="220">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsEncrypted}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource ThemeWarning}" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding IsSuccess}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource ThemeSuccess}" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Grid>
-                    </Border>
-                </Grid>
-
-                <!-- 2. HISTORY VIEW -->
-                <Grid x:Name="HistoryViewPanel" Visibility="Collapsed">
-                    <Border Style="{StaticResource StormCard}" Background="{DynamicResource ThemeCardBg}">
-                        <Grid>
-                            <StackPanel x:Name="EmptyHistoryHintPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="📜" FontSize="46" HorizontalAlignment="Center" Margin="0,0,0,12" />
-                                <TextBlock x:Name="TxtHistoryEmpty" Text="История операций пуста" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextSecondary}" HorizontalAlignment="Center" />
-                            </StackPanel>
-
-                            <DataGrid x:Name="GridHistory" AutoGenerateColumns="False" IsReadOnly="True"
-                                      Background="Transparent" BorderThickness="0"
-                                      RowBackground="Transparent"
-                                      AlternatingRowBackground="#08FFFFFF"
-                                      HeadersVisibility="Column"
-                                      ColumnHeaderStyle="{StaticResource StormColumnHeader}"
-                                      GridLinesVisibility="All"
-                                      HorizontalGridLinesBrush="{DynamicResource ThemeCardBorder}"
-                                      VerticalGridLinesBrush="{DynamicResource ThemeCardBorder}"
-                                      SelectionMode="Extended"
-                                      SelectionUnit="FullRow"
-                                      CanUserResizeRows="False"
-                                      CanUserSortColumns="True"
-                                      RowHeight="36"
-                                      PreviewKeyDown="GridHistory_PreviewKeyDown">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn x:Name="ColHistIcon" Header="🎮" Width="44" CanUserResize="False" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Image Source="{Binding BannerIcon}" ToolTip="{Binding GameTitle}" Width="26" Height="26"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                       SnapsToDevicePixels="True" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTextColumn x:Name="ColHistDate" Header="Дата обработки" Binding="{Binding ProcessedAtFormatted}" Width="150">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColHistName" Header="Имя файла" Binding="{Binding FileName}" Width="230">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Margin" Value="10,0" />
-                                                <Setter Property="FontWeight" Value="Medium" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColHistTitle" Header="Название игры" Binding="{Binding GameTitle}" Width="*">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Margin" Value="10,0" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColHistCode" Header="Код" Binding="{Binding GameCode}" Width="90">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="FontFamily" Value="Consolas, monospace" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn x:Name="ColHistSize" Header="Размер" Binding="{Binding FileSizeFormatted}" Width="100">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                                <Setter Property="VerticalAlignment" Value="Center" />
-                                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}" />
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTemplateColumn x:Name="ColHistStatus" Header="Результат" Width="180">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource ThemeSuccess}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Grid>
-                    </Border>
-                </Grid>
-            </Grid>
-
-            <!-- Bottom Progress & Action Controls -->
-            <Border Grid.Row="4" Style="{StaticResource StormCard}" Padding="16,14" Margin="0,0,0,12">
+            <!-- Action Toolbar + View Switcher + Live Search -->
+            <Border Grid.Row="0"
+                    Margin="0,0,0,8"
+                    Padding="14,10"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12">
                 <Grid>
-                    <!-- 1. QUEUE CONTROLS -->
-                    <Grid x:Name="QueueActionsPanel">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left Action Buttons -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="BtnAddFiles"
+                                Click="BtnAddFiles_Click"
+                                Height="36" Padding="14,0"
+                                Background="{StaticResource AccentPrimaryBrush}"
+                                Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                FontWeight="Bold">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <TextBlock Text="➕" />
+                                <TextBlock x:Name="TxtBtnAddFiles" Text="Добавить ROM-ы" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnAddFolder"
+                                Click="BtnAddFolder_Click"
+                                Height="36" Padding="14,0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                FontWeight="SemiBold">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <TextBlock Text="📁" />
+                                <TextBlock x:Name="TxtBtnAddFolder" Text="Добавить папку" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnClearQueue"
+                                Click="BtnClearQueue_Click"
+                                Height="36" Padding="14,0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                FontWeight="SemiBold">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <TextBlock Text="🗑" />
+                                <TextBlock x:Name="TxtBtnClearQueue" Text="Очистить список" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnExportReport"
+                                Click="BtnExportReport_Click"
+                                Height="36" Padding="12,0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                FontWeight="SemiBold">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="📊" />
+                                <TextBlock x:Name="TxtBtnExport" Text="Экспорт CSV/JSON" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Center: Live Search Box -->
+                    <Grid Grid.Column="1" Margin="14,0" MaxWidth="340" HorizontalAlignment="Stretch">
+                        <TextBox x:Name="TxtSearch"
+                                 Height="36"
+                                 Padding="12,6,30,6"
+                                 CornerRadius="8"
+                                 Background="{StaticResource BgSecondaryBrush}"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 BorderBrush="{StaticResource BorderSubtleBrush}"
+                                 PlaceholderText="🔍 Поиск по названию, коду, региону..."
+                                 TextChanged="TxtSearch_TextChanged" />
+                    </Grid>
+
+                    <!-- Right: Tab Switcher (Queue vs History) + Live Stats Badges -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Border Padding="10,5" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run x:Name="LblStatTotal" Text="Всего:" />
+                                    <Run x:Name="TxtStatTotal" Text="0" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="Bold" />
+                                </TextBlock>
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run x:Name="LblStatEnc" Text="Зашифр.:" />
+                                    <Run x:Name="TxtStatEnc" Text="0" Foreground="#F59E0B" FontWeight="Bold" />
+                                </TextBlock>
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run x:Name="LblStatDone" Text="Готово:" />
+                                    <Run x:Name="TxtStatDone" Text="0" Foreground="#10B981" FontWeight="Bold" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Button x:Name="BtnTabQueue"
+                                Click="BtnTabQueue_Click"
+                                Height="36" Padding="14,0"
+                                Background="{StaticResource AccentPrimaryBrush}"
+                                Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                FontWeight="Bold"
+                                Content="🎮 Очередь игр (0)" />
+
+                        <Button x:Name="BtnTabHistory"
+                                Click="BtnTabHistory_Click"
+                                Height="36" Padding="14,0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                FontWeight="SemiBold"
+                                Content="📜 История (0)" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ==================== TABLE CONTAINER (QUEUE & HISTORY WITH VERTICAL DIVIDERS - Rule 11) ==================== -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12">
+                <Grid>
+                    <!-- VIEW 1: QUEUE TABLE -->
+                    <Grid x:Name="PanelQueueView" Visibility="Visible">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="40" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Queue Table Column Headers with Visible Vertical Dividers & Sorting -->
+                        <Border Grid.Row="0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="0,0,0,1.5"
+                                CornerRadius="12,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="155" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="215" />
+                                    <ColumnDefinition Width="148" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="ICON" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <Button x:Name="BtnSortName" Grid.Column="1" Click="BtnSortName_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,0">
+                                    <TextBlock x:Name="HdrColFile" Text="ФАЙЛ / ВНУТРЕННЕЕ НАЗВАНИЕ ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Button>
+                                <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <Button x:Name="BtnSortCode" Grid.Column="2" Click="BtnSortCode_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <TextBlock x:Name="HdrColCode" Text="КОД ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Button>
+                                <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrColRegion" Grid.Column="3" Text="РЕГИОН" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <Button x:Name="BtnSortFormat" Grid.Column="4" Click="BtnSortFormat_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <TextBlock x:Name="HdrColFormat" Text="ФОРМАТ ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Button>
+                                <Rectangle Grid.Column="4" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <Button x:Name="BtnSortSize" Grid.Column="5" Click="BtnSortSize_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <TextBlock x:Name="HdrColSize" Text="РАЗМЕР ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Button>
+                                <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <Button x:Name="BtnSortStatus" Grid.Column="6" Click="BtnSortStatus_Click" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="4,0">
+                                    <TextBlock x:Name="HdrColStatus" Text="СТАТУС ↕" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Button>
+                                <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrColActions" Grid.Column="7" Text="ДЕЙСТВИЯ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Queue Rows ListView -->
+                        <ListView x:Name="ListGames"
+                                  Grid.Row="1"
+                                  SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource TableListViewItemStyle}"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource BorderSubtleBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Background="Transparent">
+                                        <Grid MinHeight="50">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="78" />
+                                                <ColumnDefinition Width="155" />
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="215" />
+                                                <ColumnDefinition Width="148" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Col 0: 32x32 Nearest-Neighbor Game Cartridge Icon -->
+                                            <Border Grid.Column="0" Width="38" Height="38" CornerRadius="7" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 1: File Name & Banner Title -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Padding="12,4">
+                                                <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding InternalTitle}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 2: Game Code -->
+                                            <Border Grid.Column="2" Padding="7,3" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" />
+                                            </Border>
+                                            <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 3: Region -->
+                                            <Border Grid.Column="3" Padding="7,3" CornerRadius="6" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RegionCode}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="11.5" FontWeight="Bold" />
+                                            </Border>
+                                            <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 4: Format -->
+                                            <TextBlock Grid.Column="4" Text="{Binding FormatType}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <Rectangle Grid.Column="4" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 5: Size -->
+                                            <TextBlock Grid.Column="5" Text="{Binding FileSizeFormatted}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 6: Status -->
+                                            <StackPanel Grid.Column="6" VerticalAlignment="Center" Padding="10,4" Spacing="4">
+                                                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" />
+                                                <ProgressBar Value="{Binding ProgressValue}" Maximum="100" Height="4" Foreground="{StaticResource AccentPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" CornerRadius="2" />
+                                            </StackPanel>
+                                            <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <!-- Col 7: Row Actions (Inspect, Decrypt Single, Open Folder, Remove) -->
+                                            <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Button Click="BtnInspectRom_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="ℹ" ToolTipService.ToolTip="ROM &amp; Banner Inspector" />
+                                                <Button Click="BtnProcessSingle_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" Content="▶" ToolTipService.ToolTip="Decrypt / Process ROM" />
+                                                <Button Click="BtnOpenLocation_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="📂" ToolTipService.ToolTip="Show in Explorer" />
+                                                <Button Click="BtnRemoveSingle_Click" Tag="{Binding}" Width="30" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" ToolTipService.ToolTip="Remove from Queue" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- Empty Dropzone Overlay -->
+                        <Border x:Name="EmptyStateOverlay"
+                                Grid.Row="1"
+                                Margin="28"
+                                Padding="28"
+                                CornerRadius="14"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="2"
+                                Background="Transparent"
+                                IsHitTestVisible="False">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                                <TextBlock Text="🎮" FontSize="44" HorizontalAlignment="Center" />
+                                <TextBlock x:Name="TxtDropTitle"
+                                           Text="Перетащите файлы (.nds, .dsi, .srl, .app, .cia, .tad, title.tmd) или папки сюда"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           TextAlignment="Center" />
+                                <TextBlock x:Name="TxtDropSub"
+                                           Text="Автоматическое распознавание DSiWare Modcrypt, стандарта NDS, CIA, TAD и дампов NUS"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           TextAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- VIEW 2: HISTORY TABLE -->
+                    <Grid x:Name="PanelHistoryView" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="40" />
+                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Options and Destination Folder Row -->
-                        <Grid Grid.Row="0" Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Mode CheckBoxes -->
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <CheckBox x:Name="ChkCopy" ToolTip="Режим создания копии — Сохранять расшифрованные образы в выбранную папку, не изменяя оригиналы" IsChecked="True" Content="📦 Создавать копию" Margin="0,0,20,0" Click="ChkCopy_Click" />
-                                <CheckBox x:Name="ChkInPlace" ToolTip="Режим перезаписи на месте — Атомарно перезаписывать исходные файлы расшифрованными образами" IsChecked="False" Content="🔄 Перезаписывать оригиналы на месте" Margin="0,0,16,0" Click="ChkInPlace_Click" />
-                                <CheckBox x:Name="ChkBackup" IsChecked="False" Content="🛡️ Бэкап .bak" Margin="0,0,16,0" Click="ChkBackup_Click" ToolTip="Создавать резервную копию оригинала (.bak) при перезаписи на месте" />
-                            </StackPanel>
-
-                            <!-- Output Folder Selection -->
-                            <Grid Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                        <!-- History Header with Visible Vertical Dividers -->
+                        <Border Grid.Row="0"
+                                Background="{StaticResource BgSecondaryBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="0,0,0,1.5"
+                                CornerRadius="12,12,0,0">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="155" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="200" />
+                                    <ColumnDefinition Width="110" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock x:Name="LblOutFolder" Text="Папка сохранения:" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="0" Text="ICON" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Border x:Name="BorderOutFolder" Grid.Column="1" Height="32"
-                                        Background="{DynamicResource ThemeCardBg}" BorderBrush="{DynamicResource ThemeCardBorder}"
-                                        BorderThickness="1.5" CornerRadius="7" Cursor="Hand"
-                                        AllowDrop="True"
-                                        ToolTip="Перетащите сюда папку для назначения пути сохранения"
-                                        DragEnter="BorderOutFolder_DragEnter"
-                                        DragOver="BorderOutFolder_DragOver"
-                                        DragLeave="BorderOutFolder_DragLeave"
-                                        Drop="BorderOutFolder_Drop"
-                                        PreviewDragEnter="BorderOutFolder_DragEnter"
-                                        PreviewDragOver="BorderOutFolder_DragOver"
-                                        PreviewDrop="BorderOutFolder_Drop"
-                                        MouseDown="BorderOutFolder_MouseDown">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="8" Direction="270" ShadowDepth="1.5" Opacity="0.3" Color="#000000" />
-                                    </Border.Effect>
-                                    <Grid VerticalAlignment="Center" Margin="8,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="📁 " FontSize="12" Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                        <TextBox x:Name="TxtOutFolder" Grid.Column="1" BorderThickness="0" Background="Transparent"
-                                                 IsReadOnly="True" VerticalAlignment="Center" VerticalContentAlignment="Center"
-                                                 Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12"
-                                                 Text="Выберите папку для сохранения копий..."
-                                                 Focusable="False" IsHitTestVisible="False" />
-                                    </Grid>
-                                </Border>
+                                <TextBlock x:Name="HdrHistDate" Grid.Column="1" Text="ДАТА / ВРЕМЯ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnBrowseOutFolder" ToolTip="Выбрать папку для сохранения расшифрованных копий" Grid.Column="2" Content="📂 Обзор..." Style="{StaticResource StormButton}"
-                                        Height="32" Padding="12,0" Margin="6,0,0,0" Click="BtnBrowseOutFolder_Click" />
+                                <TextBlock x:Name="HdrHistFile" Grid.Column="2" Text="ИМЯ ФАЙЛА" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="12,0" />
+                                <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
 
-                                <Button x:Name="BtnResetOutFolder" Grid.Column="3" Content="✕" ToolTip="Сбросить на папку по умолчанию"
-                                        Style="{StaticResource StormButton}" Height="32" Width="32" Padding="0" Margin="4,0,0,0" Click="BtnResetOutFolder_Click" />
+                                <TextBlock x:Name="HdrHistCode" Grid.Column="3" Text="КОД" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrHistFormat" Grid.Column="4" Text="ФОРМАТ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="4" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrHistSize" Grid.Column="5" Text="РАЗМЕР" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrHistResult" Grid.Column="6" Text="РЕЗУЛЬТАТ" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" />
+
+                                <TextBlock x:Name="HdrHistActions" Grid.Column="7" Text="ПАПКА" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
-                        </Grid>
+                        </Border>
 
-                        <!-- Buttons & Progress Row -->
-                        <Grid Grid.Row="1">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                        <ListView x:Name="ListHistory"
+                                  Grid.Row="1"
+                                  SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource TableListViewItemStyle}"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Background="Transparent">
+                                        <Grid MinHeight="48">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="155" />
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="110" />
+                                            </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Button x:Name="BtnAddFiles" ToolTip="Добавить файлы — Выбрать ROM-файлы (.nds, .dsi, .app, .cia, .tad) или архивы (.zip, .7z, .rar)" Content="📂 Добавить файлы" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFiles_Click" />
-                                <Button x:Name="BtnAddFolder" ToolTip="Добавить папку — Рекурсивно найти все поддерживаемые игры в выбранной папке" Content="🗂️ Добавить папку" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnAddFolder_Click" />
-                                <Button x:Name="BtnClear" ToolTip="Очистить список — Удалить все игры из текущей очереди обработки" Content="🗑️ Очистить список" Style="{StaticResource StormButton}" Margin="0,0,8,0" Click="BtnClear_Click" />
-                            </StackPanel>
+                                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Image Source="{Binding IconSource}" Width="32" Height="32" Stretch="UniformToFill" />
+                                            </Border>
+                                            <Rectangle Grid.Column="0" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                            <!-- Progress Bar -->
-                            <Grid Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
-                                <ProgressBar x:Name="ProgBar" ToolTip="Индикатор выполнения текущей операции расшифровки" Height="14" Minimum="0" Maximum="100" Value="0" Background="#1AFFFFFF" Foreground="{DynamicResource ThemeAccent}" BorderThickness="0" />
-                            </Grid>
+                                            <TextBlock Grid.Column="1" Text="{Binding Timestamp}" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Rectangle Grid.Column="1" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <Button x:Name="BtnDecrypt" ToolTip="⚡ Начать расшифровку — Запустить многопоточную параллельную обработку всех игр в очереди" Content="⚡ Расшифровать все" Style="{StaticResource StormHeroButton}" Margin="0,0,8,0" Click="BtnDecrypt_Click" />
-                                <Button x:Name="BtnOpenFolder" ToolTip="Открыть папку сохранения — Перейти к каталогу с сохранёнными файлами в Проводнике" Content="🚪 Открыть папку" Style="{StaticResource StormButton}" Click="BtnOpenFolder_Click" />
-                            </StackPanel>
-                        </Grid>
-                    </Grid>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Padding="12,4">
+                                                <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding OutputPath}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Rectangle Grid.Column="2" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                    <!-- 2. HISTORY CONTROLS -->
-                    <Grid x:Name="HistoryActionsPanel" Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="3" Padding="7,3" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding GameCode}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" FontWeight="Bold" />
+                                            </Border>
+                                            <Rectangle Grid.Column="3" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnClearHistory" ToolTip="Очистить историю — Удалить все записи из журнала обработки" Content="🗑️ Очистить историю" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnClearHistory_Click" />
-                            <Button x:Name="BtnDeleteHistory" ToolTip="Удалить выбранные записи из истории (Del)" Content="✖ Удалить выбранное" Style="{StaticResource StormButton}" Margin="0,0,10,0" Click="BtnDeleteHistory_Click" />
-                        </StackPanel>
+                                            <TextBlock Grid.Column="4" Text="{Binding FormatType}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Rectangle Grid.Column="4" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnOpenHistoryFolder" ToolTip="Открыть выбранный файл в Проводнике Windows" Content="📂 Показать в проводнике" Style="{StaticResource StormHeroButton}" Click="BtnOpenHistoryFolder_Click" />
-                        </StackPanel>
+                                            <TextBlock Grid.Column="5" Text="{Binding FileSizeFormatted}" Foreground="{StaticResource TextPrimaryBrush}" FontFamily="Cascadia Code, Consolas" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Rectangle Grid.Column="5" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <TextBlock Grid.Column="6" Text="{Binding ResultStatus}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <Rectangle Grid.Column="6" Width="1" HorizontalAlignment="Right" VerticalAlignment="Stretch" Fill="{StaticResource BorderSubtleBrush}" Opacity="0.7" />
+
+                                            <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Button Click="BtnHistoryOpenLocation_Click" Tag="{Binding}" Width="32" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="📂" ToolTipService.ToolTip="Show in Explorer" />
+                                                <Button Click="BtnHistoryRemoveSingle_Click" Tag="{Binding}" Width="32" Height="30" Padding="0" CornerRadius="6" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" ToolTipService.ToolTip="Delete Entry" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <Border Grid.Row="2" Padding="12,8" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,12,12">
+                            <Button x:Name="BtnClearHistory" Click="BtnClearHistory_Click" HorizontalAlignment="Right" Height="32" Padding="14,0" CornerRadius="7" Background="{StaticResource BgCardBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="🗑 Очистить историю" />
+                        </Border>
                     </Grid>
                 </Grid>
             </Border>
 
-            <!-- Footer / Status Log Bar -->
-            <Grid Grid.Row="5" Margin="0,2,0,0">
+            <!-- ==================== BOTTOM SETTINGS & OUTPUT BAR ==================== -->
+            <Border Grid.Row="2"
+                    Margin="0,8,0,0"
+                    Padding="16,12"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Processing Mode + Checkboxes -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Name="LblMode" Text="Режим:" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <ComboBox x:Name="CmbMode" Width="250" Height="36" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8" SelectionChanged="CmbMode_SelectionChanged" />
+                        </StackPanel>
+
+                        <StackPanel VerticalAlignment="Center" Spacing="4" Margin="4,0,0,0">
+                            <CheckBox x:Name="ChkVerifyCrc" IsChecked="True" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Пересчёт и проверка CRC16" Checked="Options_Changed" Unchecked="Options_Changed" />
+                            <StackPanel Orientation="Horizontal" Spacing="14">
+                                <CheckBox x:Name="ChkCompatibility" IsChecked="True" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Патч совместимости (NDS / TWiLight)" Checked="Options_Changed" Unchecked="Options_Changed" />
+                                <CheckBox x:Name="ChkBackup" IsChecked="False" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Content="Создавать резервную копию (.bak)" Checked="Options_Changed" Unchecked="Options_Changed" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Output Directory Selector -->
+                    <Grid x:Name="PanelOutputFolder" Grid.Column="1" Margin="18,0" VerticalAlignment="Center">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="LblOutputFolder" Grid.Row="0" Text="Папка сохранения:" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="TxtOutputDir" Grid.Column="0" Height="36" IsReadOnly="True" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" CornerRadius="8,0,0,8" FontSize="12" VerticalContentAlignment="Center" />
+                            <Button x:Name="BtnBrowseOut" Grid.Column="1" Click="BtnBrowseOut_Click" Height="36" Padding="12,0" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1,1,1,1" CornerRadius="0" FontWeight="SemiBold" Content="Обзор..." />
+                            <Button x:Name="BtnOpenOut" Grid.Column="2" Click="BtnOpenOut_Click" Height="36" Padding="12,0" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,1,1,1" CornerRadius="0,8,8,0" FontWeight="SemiBold" Content="📂" />
+                        </Grid>
+                    </Grid>
+
+                    <!-- Primary Action: DECRYPT ALL -->
+                    <Button x:Name="BtnStartBatch"
+                            Grid.Column="2"
+                            Click="BtnStartBatch_Click"
+                            Height="48"
+                            Padding="24,0"
+                            Background="{StaticResource AccentPrimaryBrush}"
+                            Foreground="White"
+                            BorderThickness="0"
+                            CornerRadius="10"
+                            FontSize="14.5"
+                            FontWeight="ExtraBold">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="⚡" FontSize="16" />
+                            <TextBlock x:Name="TxtBtnStartBatch" Text="РАСШИФРОВАТЬ ВСЕ" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== ROW 3: STATUS & PROGRESS BAR FOOTER ==================== -->
+        <Border Grid.Row="3"
+                Padding="18,8"
+                Background="{StaticResource BgSecondaryBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="260" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" x:Name="TxtStatusLog" Text="Готово к работе" FontSize="12" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnCheckUpdates" ToolTip="Проверить наличие новой версии программы на GitHub" Content="🔄 Обновления" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,8,0" Click="BtnCheckUpdates_Click" />
-                    <Button x:Name="BtnAbout" ToolTip="Информация о программе, версии и авторах" Content="ℹ️ О программе" Style="{StaticResource StormButton}" Height="26" Padding="10,0" FontSize="11" Click="BtnAbout_Click" />
-                </StackPanel>
+
+                <TextBlock x:Name="TxtStatusFooter"
+                           Grid.Column="0"
+                           Text="Готов к работе. Перетащите образы игр в окно программы."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="12.5"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <ProgressBar x:Name="PbTotal"
+                             Grid.Column="1"
+                             Value="0"
+                             Maximum="100"
+                             Height="8"
+                             Margin="16,0"
+                             CornerRadius="4"
+                             Foreground="{StaticResource AccentPrimaryBrush}"
+                             Background="{StaticResource BgCardBrush}"
+                             VerticalAlignment="Center" />
+
+                <TextBlock x:Name="TxtFooterBrand"
+                           Grid.Column="2"
+                           Text="STORM TEAM • AES-128-CTR Engine"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="11.5"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center" />
             </Grid>
+        </Border>
+
+        <!-- ==================== MODAL OVERLAY 1: ROM & BANNER INSPECTOR (Rule 16 ESC-closeable) ==================== -->
+        <Grid x:Name="OverlayInspector" Grid.RowSpan="4" Background="#B805040A" Visibility="Collapsed">
+            <Border Width="680" MaxHeight="620"
+                    Padding="24"
+                    CornerRadius="16"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource AccentPrimaryBrush}"
+                    BorderThickness="1.5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="76" Height="76" CornerRadius="12" Background="{StaticResource BgSecondaryBrush}" BorderBrush="{StaticResource AccentPrimaryBrush}" BorderThickness="1.5" Padding="6" Margin="0,0,16,0">
+                            <Image x:Name="ImgInspectorBanner" Width="64" Height="64" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                            <TextBlock x:Name="TxtInspectorTitle" Text="ROM &amp; Banner Inspector" FontSize="18" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="TxtInspectorSubtitle" Text="" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource AccentPrimaryBrush}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Click="BtnCloseInspector_Click" Width="34" Height="34" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Content="✕" VerticalAlignment="Top" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="420">
+                        <TextBox x:Name="TxtInspectorDetails"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 FontFamily="Cascadia Code, Consolas"
+                                 FontSize="12.5"
+                                 Padding="14"
+                                 CornerRadius="10"
+                                 Background="{StaticResource BgSecondaryBrush}"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 BorderBrush="{StaticResource BorderSubtleBrush}" />
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,16,0,0">
+                        <Button x:Name="BtnCopyInspector" Click="BtnCopyInspector_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="📋 Копировать отчёт" />
+                        <Button Click="BtnCloseInspector_Click" Height="36" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="ОК (ESC)" />
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
+
+        <!-- ==================== MODAL OVERLAY 2: UPDATE DIALOG (Rule 9 & 16) ==================== -->
+        <Grid x:Name="OverlayUpdate" Grid.RowSpan="4" Background="#B805040A" Visibility="Collapsed">
+            <Border Width="540"
+                    Padding="24"
+                    CornerRadius="16"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource AccentPrimaryBrush}"
+                    BorderThickness="1.5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock x:Name="TxtUpdateHeader" Text="Доступно обновление" FontSize="19" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock x:Name="TxtUpdateSub" Text="" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource AccentPrimaryBrush}" />
+                    <TextBox x:Name="TxtUpdateNotes" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="180" FontFamily="Cascadia Code, Consolas" FontSize="12" Padding="12" CornerRadius="10" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" />
+                    <ProgressBar x:Name="PbUpdateDownload" Visibility="Collapsed" Value="0" Maximum="100" Height="8" CornerRadius="4" Foreground="{StaticResource AccentPrimaryBrush}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                        <Button x:Name="BtnUpdateLater" Click="BtnUpdateLater_Click" Height="38" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Позже" />
+                        <Button x:Name="BtnUpdateConfirm" Click="BtnUpdateConfirm_Click" Height="38" Padding="22,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="ExtraBold" Content="Обновить" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== MODAL OVERLAY 3: DUPLICATE PROMPT DIALOG (Rule 16) ==================== -->
+        <Grid x:Name="OverlayDuplicate" Grid.RowSpan="4" Background="#B805040A" Visibility="Collapsed">
+            <Border Width="520"
+                    Padding="24"
+                    CornerRadius="16"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource AccentPrimaryBrush}"
+                    BorderThickness="1.5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock x:Name="TxtDupTitle" Text="Файл уже существует" FontSize="18" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock x:Name="TxtDupMessage" Text="" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    <CheckBox x:Name="ChkDupApplyAll" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" Content="Применить ко всем" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                        <Button x:Name="BtnDupOverwrite" Click="BtnDupOverwrite_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="Заменить" />
+                        <Button x:Name="BtnDupSkip" Click="BtnDupSkip_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Пропустить" />
+                        <Button x:Name="BtnDupCancel" Click="BtnDupCancel_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="#F43F5E" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Отмена" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== MODAL OVERLAY 4: MESSAGE / ABOUT DIALOG (Rule 16) ==================== -->
+        <Grid x:Name="OverlayMessage" Grid.RowSpan="4" Background="#B805040A" Visibility="Collapsed">
+            <Border Width="500"
+                    Padding="24"
+                    CornerRadius="16"
+                    Background="{StaticResource BgCardBrush}"
+                    BorderBrush="{StaticResource AccentPrimaryBrush}"
+                    BorderThickness="1.5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <Image x:Name="ImgModalLogo" Width="36" Height="36" />
+                        <TextBlock x:Name="TxtModalTitle" Text="STORM DS DECRYPTOR" FontSize="18" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="TxtModalMessage" Text="" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" LineHeight="21" />
+                    <Button x:Name="BtnModalOk" Click="BtnModalOk_Click" HorizontalAlignment="Right" Height="36" Padding="24,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="ОК" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
     </Grid>
+    </Page>
 </Window>

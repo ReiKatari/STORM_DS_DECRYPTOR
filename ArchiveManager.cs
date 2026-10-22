@@ -5,7 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using SharpCompress.Archives;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
 public class ArchiveRomEntry
 {

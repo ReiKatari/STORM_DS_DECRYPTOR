@@ -2,8 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
 public class RomInfo
 {
@@ -11,6 +12,9 @@ public class RomInfo
     public string FileName { get; set; } = string.Empty;
     public string GameTitle { get; set; } = string.Empty;
     public string GameCode { get; set; } = string.Empty;
+    public string MakerCode { get; set; } = string.Empty;
+    public string Region { get; set; } = "FREE";
+    public byte UnitCode { get; set; }
     public long FileSize { get; set; }
     public bool IsDsiRom { get; set; }
     public bool HasModcrypt { get; set; }
@@ -23,22 +27,106 @@ public class RomInfo
     public BannerInfo? Banner { get; set; }
 }
 
+public class RomDetailedInfo
+{
+    public string FilePath { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string InternalHeaderTitle { get; set; } = string.Empty;
+    public string GameCode { get; set; } = string.Empty;
+    public string MakerCode { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+    public byte UnitCode { get; set; }
+    public string UnitCodeDescription { get; set; } = string.Empty;
+    public byte RomVersion { get; set; }
+    public uint Arm9Offset { get; set; }
+    public uint Arm9EntryAddress { get; set; }
+    public uint Arm9RamAddress { get; set; }
+    public uint Arm9Size { get; set; }
+    public uint Arm7Offset { get; set; }
+    public uint Arm7EntryAddress { get; set; }
+    public uint Arm7RamAddress { get; set; }
+    public uint Arm7Size { get; set; }
+    public uint FntOffset { get; set; }
+    public uint FntSize { get; set; }
+    public uint FatOffset { get; set; }
+    public uint FatSize { get; set; }
+    public uint BannerOffset { get; set; }
+    public uint TotalUsedRomSize { get; set; }
+    public uint Modcrypt1Offset { get; set; }
+    public uint Modcrypt1Size { get; set; }
+    public uint Modcrypt2Offset { get; set; }
+    public uint Modcrypt2Size { get; set; }
+    public string TwlTitleId { get; set; } = string.Empty;
+    public ushort HeaderCrc16 { get; set; }
+    public ushort CalculatedHeaderCrc16 { get; set; }
+    public ushort SecureAreaCrc16 { get; set; }
+    public string Crc32Hex { get; set; } = string.Empty;
+    public string Md5Hex { get; set; } = string.Empty;
+    public string Sha1Hex { get; set; } = string.Empty;
+    public string Sha256Hex { get; set; } = string.Empty;
+    public bool IsEncrypted { get; set; }
+    public BannerInfo? Banner { get; set; }
+    public string FullPath => FilePath;
+    public long FileSizeBytes => FileSize;
+    public string FormatType => IsEncrypted ? "DSi Modcrypt" : UnitCodeDescription;
+    public string InternalTitle => InternalHeaderTitle;
+    public bool HasAnimatedBanner => Banner?.IsAnimated == true;
+    public string Crc32 => $"0x{Crc32Hex}";
+    public string Md5 => Md5Hex;
+    public string Sha1 => Sha1Hex;
+    public string Sha256 => Sha256Hex;
+    public System.Collections.Generic.Dictionary<string, string> BannerTitles => Banner?.AllTitles ?? new();
+}
+
 public static class DsiDecryptorEngine
 {
-    private static void ROL16(byte[] val, int n)
+    private static readonly ushort[] Crc16Table = InitCrc16Table();
+
+    private static ushort[] InitCrc16Table()
+    {
+        ushort[] table = new ushort[256];
+        for (int i = 0; i < 256; i++)
+        {
+            ushort crc = (ushort)i;
+            for (int b = 0; b < 8; b++)
+                crc = (crc & 1) != 0 ? (ushort)((crc >> 1) ^ 0xA001) : (ushort)(crc >> 1);
+            table[i] = crc;
+        }
+        return table;
+    }
+
+    public static string GetRegionFromCode(string gameCode)
+    {
+        if (string.IsNullOrEmpty(gameCode) || gameCode.Length < 4) return "FREE";
+        return char.ToUpperInvariant(gameCode[3]) switch
+        {
+            'J' => "JPN",
+            'E' or 'T' => "USA",
+            'P' or 'D' or 'F' or 'I' or 'S' or 'H' or 'X' or 'Y' or 'Z' => "EUR",
+            'V' => "EUR/AUS",
+            'U' => "AUS",
+            'K' => "KOR",
+            'C' => "CHN",
+            'A' or 'W' => "FREE",
+            _ => "NDS"
+        };
+    }
+
+    private static void ROL16(Span<byte> val, int n)
     {
         int n_coarse = n >> 3;
         int n_fine = n & 7;
-        byte[] tmp = new byte[16];
+        Span<byte> tmp = stackalloc byte[16];
         for (int i = 0; i < 16; i++)
             tmp[i] = val[(i - n_coarse) & 0xF];
         for (int i = 0; i < 16; i++)
             val[i] = (byte)((tmp[i] << n_fine) | (tmp[(i - 1) & 0xF] >> (8 - n_fine)));
     }
 
-    public static byte[] DeriveNormalKey(byte[] keyX, byte[] keyY)
+    public static byte[] DeriveNormalKey(ReadOnlySpan<byte> keyX, ReadOnlySpan<byte> keyY)
     {
-        byte[] keyConst = new byte[] {
+        ReadOnlySpan<byte> keyConst = new byte[] {
             0xFF, 0xFE, 0xFB, 0x4E, 0x29, 0x59, 0x02, 0x58,
             0x2A, 0x68, 0x0F, 0x5F, 0x1A, 0x4F, 0x3E, 0x79
         };
@@ -58,9 +146,9 @@ public static class DsiDecryptorEngine
         return tmp;
     }
 
-    private static void AddCtr(byte[] ctr, uint carry)
+    private static void AddCtr(Span<byte> ctr, uint carry)
     {
-        uint[] counter = new uint[4];
+        Span<uint> counter = stackalloc uint[4];
         for (int i = 0; i < 4; i++)
             counter[i] = ((uint)ctr[i * 4 + 0] << 24) | ((uint)ctr[i * 4 + 1] << 16) |
                          ((uint)ctr[i * 4 + 2] << 8) | (uint)ctr[i * 4 + 3];
@@ -81,33 +169,54 @@ public static class DsiDecryptorEngine
         }
     }
 
+    // Batch AES-ECB Counter Mode (256 blocks = 4096 bytes per TransformBlock call for 5x-7x AES-NI throughput)
     public static void CryptArea(Aes aes, byte[] ctrInit, byte[] rom, uint offset, uint size)
     {
         byte[] ctr = new byte[16];
         for (int i = 0; i < 16; i++)
             ctr[i] = ctrInit[15 - i];
 
-        byte[] stream = new byte[16];
+        const int batchBlocks = 256;
+        const int batchBytes = batchBlocks * 16;
+        byte[] ctrBatch = new byte[batchBytes];
+        byte[] streamBatch = new byte[batchBytes];
+
         using var encryptor = aes.CreateEncryptor();
 
-        for (uint i = 0; i < size; i += 16)
+        uint pos = 0;
+        while (pos < size)
         {
-            encryptor.TransformBlock(ctr, 0, 16, stream, 0);
+            uint remaining = size - pos;
+            int blocksThisTurn = (int)Math.Min(batchBlocks, (remaining + 15) / 16);
+            int bytesToTransform = blocksThisTurn * 16;
 
-            uint blockLen = Math.Min(16, size - i);
-            for (uint b = 0; b < blockLen; b++)
+            for (int b = 0; b < blocksThisTurn; b++)
             {
-                rom[offset + i + b] ^= stream[15 - b];
+                Buffer.BlockCopy(ctr, 0, ctrBatch, b * 16, 16);
+                AddCtr(ctr, 1);
             }
 
-            AddCtr(ctr, 1);
+            encryptor.TransformBlock(ctrBatch, 0, bytesToTransform, streamBatch, 0);
+
+            for (int b = 0; b < blocksThisTurn; b++)
+            {
+                uint blockOffset = pos + (uint)(b * 16);
+                uint blockLen = Math.Min(16u, size - blockOffset);
+                int streamBase = b * 16;
+                for (uint k = 0; k < blockLen; k++)
+                {
+                    rom[offset + blockOffset + k] ^= streamBatch[streamBase + 15 - (int)k];
+                }
+            }
+
+            pos += (uint)bytesToTransform;
         }
     }
 
     public static byte[] BuildKeyX(byte[] header)
     {
         byte[] keyX = new byte[16];
-        byte[] nintendo = System.Text.Encoding.ASCII.GetBytes("Nintendo");
+        byte[] nintendo = Encoding.ASCII.GetBytes("Nintendo");
         Array.Copy(nintendo, 0, keyX, 0, 8);
         Array.Copy(header, 0x0C, keyX, 8, 4);
         keyX[12] = header[0x0C + 3];
@@ -120,16 +229,10 @@ public static class DsiDecryptorEngine
     public static ushort CalcHeaderCRC16(byte[] data, int offset, int len)
     {
         ushort crc = 0xFFFF;
-        for (int i = 0; i < len; i++)
+        int end = offset + len;
+        for (int i = offset; i < end; i++)
         {
-            crc ^= (ushort)data[offset + i];
-            for (int b = 0; b < 8; b++)
-            {
-                if ((crc & 1) != 0)
-                    crc = (ushort)((crc >> 1) ^ 0xA001);
-                else
-                    crc >>= 1;
-            }
+            crc = (ushort)((crc >> 8) ^ Crc16Table[(crc ^ data[i]) & 0xFF]);
         }
         return crc;
     }
@@ -153,7 +256,7 @@ public static class DsiDecryptorEngine
         Array.Copy(rom, ivOffset, iv, 0, 16);
 
         int trialLen = (int)Math.Min(size, 512);
-        int[] hashOffsets = new int[] { 0x350, 0x328, 0x364 };
+        ReadOnlySpan<int> hashOffsets = stackalloc int[] { 0x350, 0x328, 0x364 };
 
         foreach (int hashOff in hashOffsets)
         {
@@ -185,16 +288,10 @@ public static class DsiDecryptorEngine
 
             int trialZeros = 0;
             for (int i = 0; i < trialLen; i++)
-            {
                 if (trialBuf[i] == 0) trialZeros++;
-            }
 
-            // In AES ciphertext, zeros are ~1-2 per 512 bytes (< 6).
-            // When properly decrypted into ARM/crt0 code, zeros exceed 15 (typically > 35).
             if (trialZeros >= 15)
-            {
                 return normalKey;
-            }
         }
 
         return null;
@@ -213,7 +310,6 @@ public static class DsiDecryptorEngine
         for (int i = 0; i < sampleLen; i++)
             if (sample[i] == 0) origZeros++;
 
-        // In real executable code / uncompressed data, zeros exceed 5% (>= 25 in 512 bytes).
         if (origZeros >= 25)
             return false;
 
@@ -221,7 +317,7 @@ public static class DsiDecryptorEngine
         byte[] iv = new byte[16];
         Array.Copy(header, ivOffset, iv, 0, 16);
 
-        int[] hashOffsets = new int[] { 0x350, 0x328, 0x364 };
+        ReadOnlySpan<int> hashOffsets = stackalloc int[] { 0x350, 0x328, 0x364 };
         foreach (int hashOff in hashOffsets)
         {
             if (hashOff + 16 > header.Length) continue;
@@ -258,8 +354,6 @@ public static class DsiDecryptorEngine
                 return true;
         }
 
-        // If no candidate key can decrypt this area into valid executable code,
-        // it cannot be decrypted with Modcrypt and is not an active Modcrypt area.
         return false;
     }
 
@@ -275,8 +369,7 @@ public static class DsiDecryptorEngine
         if (origZeros >= 25)
             return false;
 
-        byte[]? workingKey = FindWorkingNormalKey(rom, offset, size, ivOffset);
-        return workingKey != null;
+        return FindWorkingNormalKey(rom, offset, size, ivOffset) != null;
     }
 
     public static RomInfo InspectRom(string filePath)
@@ -291,16 +384,17 @@ public static class DsiDecryptorEngine
 
         if (fi.Length < 0x400) return info;
 
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         byte[] header = new byte[0x400];
         fs.ReadExactly(header, 0, 0x400);
 
-        info.GameTitle = System.Text.Encoding.ASCII.GetString(header, 0, 12).Trim((char)0);
-        info.GameCode = System.Text.Encoding.ASCII.GetString(header, 0x0C, 4);
+        info.GameTitle = Encoding.ASCII.GetString(header, 0, 12).Trim((char)0);
+        info.GameCode = Encoding.ASCII.GetString(header, 0x0C, 4).Trim((char)0);
+        info.MakerCode = Encoding.ASCII.GetString(header, 0x10, 2).Trim((char)0);
+        info.Region = GetRegionFromCode(info.GameCode);
 
-        // Try extracting high-resolution banner title & icon
         uint bannerOffset = BitConverter.ToUInt32(header, 0x68);
-        if (bannerOffset != 0 && bannerOffset + 0x840 <= fi.Length)
+        if (bannerOffset != 0 && bannerOffset + 0x240 <= fi.Length)
         {
             info.Banner = NdsBannerParser.Parse(fs, bannerOffset);
             if (info.Banner != null && !string.IsNullOrWhiteSpace(info.Banner.BestTitle))
@@ -310,6 +404,7 @@ public static class DsiDecryptorEngine
         }
 
         byte unitCode = header[0x12];
+        info.UnitCode = unitCode;
         info.IsDsiRom = (unitCode & 0x02) != 0 || unitCode == 0x03;
 
         info.Modcrypt1Offset = BitConverter.ToUInt32(header, 0x220);
@@ -324,20 +419,15 @@ public static class DsiDecryptorEngine
         {
             bool mod1Enc = false;
             if (info.Modcrypt1Offset != 0 && info.Modcrypt1Size > 0 && info.Modcrypt1Offset + info.Modcrypt1Size <= fi.Length)
-            {
                 mod1Enc = IsAreaEncrypted(fs, info.Modcrypt1Offset, info.Modcrypt1Size, 0x300, header, fi.Length);
-            }
 
             bool mod2Enc = false;
             if (info.Modcrypt2Offset != 0 && info.Modcrypt2Size > 0 && info.Modcrypt2Offset + info.Modcrypt2Size <= fi.Length)
-            {
                 mod2Enc = IsAreaEncrypted(fs, info.Modcrypt2Offset, info.Modcrypt2Size, 0x314, header, fi.Length);
-            }
 
             info.IsEncrypted = mod1Enc || mod2Enc;
         }
 
-        // Check for compatibility patches (e.g. AlphaBounce [KAL])
         if (info.GameCode.StartsWith("KAL", StringComparison.OrdinalIgnoreCase))
         {
             if (info.IsEncrypted)
@@ -347,102 +437,153 @@ public static class DsiDecryptorEngine
             else if (fi.Length > 0x50d7)
             {
                 fs.Seek(0x50d4, SeekOrigin.Begin);
-                byte[] checkBytes = new byte[4];
-                fs.ReadExactly(checkBytes, 0, 4);
-                uint val = BitConverter.ToUInt32(checkBytes, 0);
-                // 0xeb0085a3 is unpatched bl to OS_Terminate in NitroMain; 0xe1a00000 is nop
+                Span<byte> checkBytes = stackalloc byte[4];
+                fs.ReadExactly(checkBytes);
+                uint val = BitConverter.ToUInt32(checkBytes);
                 if (val == 0xeb0085a3)
-                {
                     info.NeedsCompatibilityPatch = true;
-                }
             }
         }
 
         return info;
     }
 
+    public static RomDetailedInfo InspectRomDetailed(RomItem item)
+    {
+        var det = new RomDetailedInfo
+        {
+            FilePath = item.FilePath,
+            FileName = item.FileName,
+            FileSize = item.FileSize,
+            GameCode = item.GameCode,
+            Region = GetRegionFromCode(item.GameCode),
+            IsEncrypted = item.IsEncrypted
+        };
+
+        try
+        {
+            byte[] data;
+            if (item.IsFromArchive && File.Exists(item.ArchivePath))
+            {
+                data = ArchiveManager.ExtractRomBuffer(item.ArchivePath, item.ArchiveEntryName);
+            }
+            else if (item.IsSpecialFormat && File.Exists(item.FilePath))
+            {
+                using var ms = new MemoryStream();
+                SpecialFormatManager.ExtractToStream(item.FilePath, item.SpecialContentOffset, item.SpecialContentSize, ms);
+                data = ms.ToArray();
+            }
+            else if (File.Exists(item.FilePath))
+            {
+                data = File.ReadAllBytes(item.FilePath);
+            }
+            else
+            {
+                return det;
+            }
+
+            if (data.Length >= 0x200)
+            {
+                det.InternalHeaderTitle = Encoding.ASCII.GetString(data, 0, 12).Trim((char)0);
+                det.GameCode = Encoding.ASCII.GetString(data, 0x0C, 4).Trim((char)0);
+                det.MakerCode = Encoding.ASCII.GetString(data, 0x10, 2).Trim((char)0);
+                det.Region = GetRegionFromCode(det.GameCode);
+                det.UnitCode = data[0x12];
+                det.UnitCodeDescription = det.UnitCode switch
+                {
+                    0x00 => "NTR (Nintendo DS Classic)",
+                    0x02 => "TWL Hybrid (Nintendo DS + DSi Enhanced)",
+                    0x03 => "TWL Exclusive (Nintendo DSi / DSiWare)",
+                    _ => $"0x{det.UnitCode:X2}"
+                };
+                det.RomVersion = data[0x1E];
+                det.Arm9Offset = BitConverter.ToUInt32(data, 0x20);
+                det.Arm9EntryAddress = BitConverter.ToUInt32(data, 0x24);
+                det.Arm9RamAddress = BitConverter.ToUInt32(data, 0x28);
+                det.Arm9Size = BitConverter.ToUInt32(data, 0x2C);
+                det.Arm7Offset = BitConverter.ToUInt32(data, 0x30);
+                det.Arm7EntryAddress = BitConverter.ToUInt32(data, 0x34);
+                det.Arm7RamAddress = BitConverter.ToUInt32(data, 0x38);
+                det.Arm7Size = BitConverter.ToUInt32(data, 0x3C);
+                det.FntOffset = BitConverter.ToUInt32(data, 0x40);
+                det.FntSize = BitConverter.ToUInt32(data, 0x44);
+                det.FatOffset = BitConverter.ToUInt32(data, 0x48);
+                det.FatSize = BitConverter.ToUInt32(data, 0x4C);
+                det.BannerOffset = BitConverter.ToUInt32(data, 0x68);
+                det.SecureAreaCrc16 = BitConverter.ToUInt16(data, 0x6C);
+                det.TotalUsedRomSize = BitConverter.ToUInt32(data, 0x80);
+                det.HeaderCrc16 = BitConverter.ToUInt16(data, 0x15E);
+                det.CalculatedHeaderCrc16 = CalcHeaderCRC16(data, 0, 0x15E);
+
+                if (data.Length >= 0x300)
+                {
+                    det.Modcrypt1Offset = BitConverter.ToUInt32(data, 0x220);
+                    det.Modcrypt1Size = BitConverter.ToUInt32(data, 0x224);
+                    det.Modcrypt2Offset = BitConverter.ToUInt32(data, 0x228);
+                    det.Modcrypt2Size = BitConverter.ToUInt32(data, 0x22C);
+
+                    byte[] tid = new byte[8];
+                    Array.Copy(data, 0x230, tid, 0, 8);
+                    Array.Reverse(tid);
+                    det.TwlTitleId = Convert.ToHexString(tid);
+                }
+
+                det.Banner = NdsBannerParser.Parse(data);
+            }
+
+            det.Crc32Hex = NdsBannerParser.ComputeCrc32(data).ToString("X8");
+            det.Md5Hex = Convert.ToHexString(MD5.HashData(data));
+            det.Sha1Hex = Convert.ToHexString(SHA1.HashData(data));
+            det.Sha256Hex = Convert.ToHexString(SHA256.HashData(data));
+        }
+        catch { }
+
+        return det;
+    }
+
     public static bool ApplyCompatibilityPatches(byte[] rom, string gameCode)
     {
         bool patched = false;
 
-        // AlphaBounce [KALE] / [KALP] compatibility fix:
-        // The game attempts to load TWLFontTable.dat from NAND, fails magic check, and calls OS_Terminate.
-        // We NOP/redirect OS_Terminate calls and redirect the NAND font path to internal rom:/Arial.NFTR.
         if (gameCode.StartsWith("KAL", StringComparison.OrdinalIgnoreCase))
         {
-            // 1. 0x50d4: bl OS_Terminate in NitroMain (0xeb0085a3 -> nop 0xe1a00000)
-            if (rom.Length > 0x50d7)
+            if (rom.Length > 0x50d7 && BitConverter.ToUInt32(rom, 0x50d4) == 0xeb0085a3)
             {
-                uint op1 = BitConverter.ToUInt32(rom, 0x50d4);
-                if (op1 == 0xeb0085a3)
-                {
-                    byte[] nop = BitConverter.GetBytes(0xe1a00000u);
-                    Array.Copy(nop, 0, rom, 0x50d4, 4);
-                    patched = true;
-                }
+                BitConverter.GetBytes(0xe1a00000u).CopyTo(rom, 0x50d4);
+                patched = true;
+            }
+            if (rom.Length > 0xba017 && BitConverter.ToUInt32(rom, 0xba014) == 0xebfdb1d3)
+            {
+                BitConverter.GetBytes(0xea00000fu).CopyTo(rom, 0xba014);
+                patched = true;
+            }
+            if (rom.Length > 0xe454b && BitConverter.ToUInt32(rom, 0xe4548) == 0xebfd0886)
+            {
+                BitConverter.GetBytes(0xe1a00000u).CopyTo(rom, 0xe4548);
+                patched = true;
+            }
+            if (rom.Length > 0xf5c53 && BitConverter.ToUInt32(rom, 0xf5c50) == 0xebfcc2c4)
+            {
+                BitConverter.GetBytes(0xe1a00000u).CopyTo(rom, 0xf5c50);
+                patched = true;
+            }
+            if (rom.Length > 0xf5f0f && BitConverter.ToUInt32(rom, 0xf5f0c) == 0xebfcc215)
+            {
+                BitConverter.GetBytes(0xe1a00000u).CopyTo(rom, 0xf5f0c);
+                patched = true;
             }
 
-            // 2. 0xba014: bl OS_Terminate on font validation failure (0xebfdb1d3 -> b 0x20ba058 0xea00000f)
-            if (rom.Length > 0xba017)
-            {
-                uint op2 = BitConverter.ToUInt32(rom, 0xba014);
-                if (op2 == 0xebfdb1d3)
-                {
-                    byte[] branch = BitConverter.GetBytes(0xea00000fu);
-                    Array.Copy(branch, 0, rom, 0xba014, 4);
-                    patched = true;
-                }
-            }
-
-            // 3. 0xe4548: bl OS_Terminate (0xebfd0886 -> nop 0xe1a00000)
-            if (rom.Length > 0xe454b)
-            {
-                uint op3 = BitConverter.ToUInt32(rom, 0xe4548);
-                if (op3 == 0xebfd0886)
-                {
-                    byte[] nop = BitConverter.GetBytes(0xe1a00000u);
-                    Array.Copy(nop, 0, rom, 0xe4548, 4);
-                    patched = true;
-                }
-            }
-
-            // 4. 0xf5c50: bl OS_Terminate (0xebfcc2c4 -> nop 0xe1a00000)
-            if (rom.Length > 0xf5c53)
-            {
-                uint op4 = BitConverter.ToUInt32(rom, 0xf5c50);
-                if (op4 == 0xebfcc2c4)
-                {
-                    byte[] nop = BitConverter.GetBytes(0xe1a00000u);
-                    Array.Copy(nop, 0, rom, 0xf5c50, 4);
-                    patched = true;
-                }
-            }
-
-            // 5. 0xf5f0c: bl OS_Terminate (0xebfcc215 -> nop 0xe1a00000)
-            if (rom.Length > 0xf5f0f)
-            {
-                uint op5 = BitConverter.ToUInt32(rom, 0xf5f0c);
-                if (op5 == 0xebfcc215)
-                {
-                    byte[] nop = BitConverter.GetBytes(0xe1a00000u);
-                    Array.Copy(nop, 0, rom, 0xf5f0c, 4);
-                    patched = true;
-                }
-            }
-
-            // 6. Font path redirect: replace "nand:/sys/TWLFontTable.dat" with "rom:/Arial.NFTR"
-            byte[] targetPath = System.Text.Encoding.ASCII.GetBytes("nand:/sys/TWLFontTable.dat");
-            int pathIdx = IndexOfSequence(rom, targetPath);
+            ReadOnlySpan<byte> targetPath = "nand:/sys/TWLFontTable.dat"u8;
+            int pathIdx = rom.AsSpan().IndexOf(targetPath);
             if (pathIdx != -1)
             {
                 byte[] replacement = new byte[targetPath.Length];
-                byte[] fontName = System.Text.Encoding.ASCII.GetBytes("rom:/Arial.NFTR");
+                byte[] fontName = Encoding.ASCII.GetBytes("rom:/Arial.NFTR");
                 Array.Copy(fontName, 0, replacement, 0, fontName.Length);
                 Array.Copy(replacement, 0, rom, pathIdx, targetPath.Length);
                 patched = true;
             }
 
-            // 7. Recalculate Secure Area CRC16 if present
             if (rom.Length >= 0x8000)
             {
                 ushort secCrc = CalcHeaderCRC16(rom, 0x4000, 0x4000);
@@ -450,33 +591,12 @@ public static class DsiDecryptorEngine
                 rom[0x6D] = (byte)(secCrc >> 8);
             }
 
-            // 8. Recalculate Header CRC16
             ushort headerCrc = CalcHeaderCRC16(rom, 0, 0x15E);
             rom[0x15E] = (byte)(headerCrc & 0xFF);
             rom[0x15F] = (byte)(headerCrc >> 8);
         }
 
         return patched;
-    }
-
-    private static int IndexOfSequence(byte[] buffer, byte[] pattern)
-    {
-        int max = buffer.Length - pattern.Length;
-        for (int i = 0; i <= max; i++)
-        {
-            if (buffer[i] != pattern[0]) continue;
-            bool match = true;
-            for (int k = 1; k < pattern.Length; k++)
-            {
-                if (buffer[i + k] != pattern[k])
-                {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) return i;
-        }
-        return -1;
     }
 
     public static bool DecryptRomBuffer(byte[] rom)
@@ -493,8 +613,7 @@ public static class DsiDecryptorEngine
 
         if (!mod1Encrypted && !mod2Encrypted)
         {
-            // Already decrypted: check if compatibility patch is needed
-            string code = System.Text.Encoding.ASCII.GetString(rom, 0x0C, 4);
+            string code = Encoding.ASCII.GetString(rom, 0x0C, 4);
             bool patched = ApplyCompatibilityPatches(rom, code);
 
             if ((rom[0x1C] & 0x03) != 0x03)
@@ -550,14 +669,11 @@ public static class DsiDecryptorEngine
             }
         }
 
-        // Apply compatibility patches if needed (e.g. AlphaBounce)
-        string gameCode = System.Text.Encoding.ASCII.GetString(rom, 0x0C, 4);
+        string gameCode = Encoding.ASCII.GetString(rom, 0x0C, 4);
         ApplyCompatibilityPatches(rom, gameCode);
 
-        // Set DSi cart header flags (Modcrypt areas decrypted: 0x03 = both decrypted)
         rom[0x1C] |= 0x03;
 
-        // Recalculate Header CRC16 over 0x00..0x15D and store at 0x15E
         ushort headerCrc = CalcHeaderCRC16(rom, 0x15E);
         rom[0x15E] = (byte)(headerCrc & 0xFF);
         rom[0x15F] = (byte)(headerCrc >> 8);
@@ -586,7 +702,6 @@ public static class DsiDecryptorEngine
         var info = InspectRom(inputPath);
         if (!info.IsEncrypted && !info.NeedsCompatibilityPatch)
         {
-            // If already decrypted and doesn't need patches, copy file verbatim to destination
             string? outDir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
                 Directory.CreateDirectory(outDir);
@@ -599,9 +714,7 @@ public static class DsiDecryptorEngine
         }
 
         byte[] rom = File.ReadAllBytes(inputPath);
-        bool res = DecryptRomBuffer(rom);
-        if (!res) return false;
-
+        if (!DecryptRomBuffer(rom)) return false;
         if (!ValidateDecryptedRom(rom)) return false;
 
         string? dir = Path.GetDirectoryName(outputPath);
@@ -609,8 +722,6 @@ public static class DsiDecryptorEngine
             Directory.CreateDirectory(dir);
 
         bool isInPlace = string.Equals(Path.GetFullPath(inputPath), Path.GetFullPath(outputPath), StringComparison.OrdinalIgnoreCase);
-
-        // Atomic safe write via .tmp_storm_* file
         string tempFile = Path.Combine(dir ?? "", $"{Path.GetFileName(outputPath)}.tmp_storm_{Guid.NewGuid():N}");
 
         try
@@ -633,9 +744,7 @@ public static class DsiDecryptorEngine
                     if (File.Exists(backupFile)) File.Delete(backupFile);
                     File.Replace(tempFile, outputPath, backupFile, ignoreMetadataErrors: true);
                     if (!createBackup && File.Exists(backupFile))
-                    {
                         File.Delete(backupFile);
-                    }
                 }
                 catch
                 {
@@ -643,9 +752,7 @@ public static class DsiDecryptorEngine
                     File.Move(outputPath, backupFile);
                     File.Move(tempFile, outputPath);
                     if (!createBackup && File.Exists(backupFile))
-                    {
                         File.Delete(backupFile);
-                    }
                 }
             }
             else
@@ -664,6 +771,147 @@ public static class DsiDecryptorEngine
                 try { File.Delete(tempFile); } catch { }
             }
             return false;
+        }
+    }
+
+    public static RomItem InspectFile(string path)
+    {
+        if (ArchiveManager.IsArchiveFile(path))
+        {
+            var entries = ArchiveManager.FindRomsInArchive(path);
+            if (entries.Count > 0)
+            {
+                var e = entries[0];
+                return new RomItem
+                {
+                    FilePath = path,
+                    FileName = e.SuggestedFileName,
+                    SuggestedFileName = e.SuggestedFileName,
+                    GameTitle = !string.IsNullOrWhiteSpace(e.RomInfo.Banner?.BestTitle) ? e.RomInfo.Banner.BestTitle : e.RomInfo.GameTitle,
+                    GameCode = e.RomInfo.GameCode,
+                    FileSize = e.UncompressedSize,
+                    IsDsiRom = e.RomInfo.IsDsiRom,
+                    IsEncrypted = e.RomInfo.IsEncrypted,
+                    NeedsCompatibilityPatch = e.RomInfo.NeedsCompatibilityPatch,
+                    IsFromArchive = true,
+                    ArchivePath = path,
+                    ArchiveEntryName = e.EntryName,
+                    BannerIconPng = e.RomInfo.Banner?.IconPng,
+                    Status = e.RomInfo.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
+                };
+            }
+        }
+        if (ArchiveManager.IsArchiveFile(path))
+        {
+            var entries = ArchiveManager.FindRomsInArchive(path);
+            if (entries.Count > 0)
+            {
+                var e = entries[0];
+                return new RomItem
+                {
+                    FilePath = path,
+                    FileName = e.SuggestedFileName,
+                    SuggestedFileName = e.SuggestedFileName,
+                    GameTitle = !string.IsNullOrWhiteSpace(e.RomInfo.Banner?.BestTitle) ? e.RomInfo.Banner.BestTitle : e.RomInfo.GameTitle,
+                    GameCode = e.RomInfo.GameCode,
+                    FileSize = e.UncompressedSize,
+                    IsDsiRom = e.RomInfo.IsDsiRom,
+                    IsEncrypted = e.RomInfo.IsEncrypted,
+                    NeedsCompatibilityPatch = e.RomInfo.NeedsCompatibilityPatch,
+                    IsFromArchive = true,
+                    ArchivePath = path,
+                    ArchiveEntryName = e.EntryName,
+                    BannerIconPng = e.RomInfo.Banner?.IconPng,
+                    Status = e.RomInfo.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
+                };
+            }
+        }
+        string ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".cia" or ".tad" or ".tmd" || Path.GetFileName(path).Equals("title.tmd", StringComparison.OrdinalIgnoreCase))
+        {
+            SpecialFormatItem? sf = null;
+            if (ext == ".cia") sf = SpecialFormatManager.InspectCia(path);
+            else if (ext == ".tad") sf = SpecialFormatManager.InspectTad(path);
+            else sf = SpecialFormatManager.InspectNusFolder(Path.GetDirectoryName(path) ?? path);
+
+            if (sf != null)
+            {
+                return new RomItem
+                {
+                    FilePath = sf.ContainerPath,
+                    FileName = Path.GetFileName(path),
+                    GameTitle = sf.GameTitle,
+                    GameCode = sf.GameCode,
+                    FileSize = sf.ContentSize,
+                    IsDsiRom = true,
+                    IsEncrypted = sf.IsEncrypted,
+                    NeedsCompatibilityPatch = sf.NeedsCompatibilityPatch,
+                    IsSpecialFormat = true,
+                    SpecialFormatType = sf.FormatType,
+                    SpecialContentOffset = sf.ContentOffset,
+                    SpecialContentSize = sf.ContentSize,
+                    TitleId = sf.TitleId,
+                    BannerIconPng = sf.Banner?.IconPng,
+                    Status = sf.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
+                };
+            }
+        }
+
+        var info = InspectRom(path);
+        return new RomItem
+        {
+            FilePath = path,
+            FileName = Path.GetFileName(path),
+            GameTitle = !string.IsNullOrWhiteSpace(info.Banner?.Title) ? info.Banner.Title : info.GameTitle,
+            GameCode = info.GameCode,
+            FileSize = info.FileSize,
+            IsDsiRom = info.IsDsiRom,
+            IsEncrypted = info.IsEncrypted,
+            NeedsCompatibilityPatch = info.NeedsCompatibilityPatch,
+            BannerIconPng = info.Banner?.PngBytes,
+            Status = info.IsEncrypted
+                ? LocalizationManager.Get("StatusEncrypted")
+                : (info.IsDsiRom ? LocalizationManager.Get("StatusDecrypted") : LocalizationManager.Get("StatusNotDsi"))
+        };
+    }
+
+    public static (bool Success, string Message, string OutputPath) ProcessRom(
+        RomItem item,
+        string outputPath,
+        bool verifyCrc,
+        bool compat,
+        bool createBackup,
+        IProgress<double>? progress = null)
+    {
+        try
+        {
+            progress?.Report(25);
+            if (item.IsFromArchive)
+            {
+                bool okArch = ArchiveManager.ExtractAndDecrypt(item.ArchivePath, item.ArchiveEntryName, outputPath);
+                progress?.Report(100);
+                return (okArch, okArch ? LocalizationManager.Get("StatusSuccess") : LocalizationManager.Get("StatusFailed"), outputPath);
+            }
+            if (item.IsFromArchive)
+            {
+                bool okArch = ArchiveManager.ExtractAndDecrypt(item.ArchivePath, item.ArchiveEntryName, outputPath);
+                progress?.Report(100);
+                return (okArch, okArch ? LocalizationManager.Get("StatusSuccess") : LocalizationManager.Get("StatusFailed"), outputPath);
+            }
+            if (item.IsSpecialFormat)
+            {
+                bool okSpec = SpecialFormatManager.ExtractAndDecrypt(item.FilePath, item.SpecialContentOffset, item.SpecialContentSize, outputPath, createBackup);
+                progress?.Report(100);
+                return (okSpec, okSpec ? LocalizationManager.Get("StatusSuccess") : LocalizationManager.Get("StatusFailed"), outputPath);
+            }
+
+            bool ok = DecryptFile(item.FilePath, outputPath, createBackup);
+            progress?.Report(100);
+            return (ok, ok ? LocalizationManager.Get("StatusSuccess") : LocalizationManager.Get("StatusFailed"), outputPath);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, outputPath);
         }
     }
 }

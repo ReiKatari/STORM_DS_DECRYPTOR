@@ -1,9 +1,0 @@
-global using Application = System.Windows.Application;
-global using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-global using DragEventArgs = System.Windows.DragEventArgs;
-global using DataFormats = System.Windows.DataFormats;
-global using DragDropEffects = System.Windows.DragDropEffects;
-global using MessageBox = System.Windows.MessageBox;
-global using UserControl = System.Windows.Controls.UserControl;
-global using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
-global using SaveFileDialog = Microsoft.Win32.SaveFileDialog;

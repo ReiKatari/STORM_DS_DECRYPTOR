@@ -76,10 +76,10 @@ namespace StormUniversal.Installer
 
     public sealed class InstallerForm : Form
     {
-        private const string AppDisplayName = "STORM DSI DECRYPTOR";
-        private const string AppVersion = "1.2.1";
-        private const string AppFolderName = "STORM DSI DECRYPTOR";
-        private const string ExeName = "STORM DSI DECRYPTOR.exe";
+        private const string AppDisplayName = "STORM DS DECRYPTOR";
+        private const string AppVersion = "1.3.0";
+        private const string AppFolderName = "STORM DS DECRYPTOR";
+        private const string ExeName = "STORM DS DECRYPTOR.exe";
         private const string IcoName = "AppIcon.ico";
         private const string BatName = "Быстрая_Расшифровка_Игр.bat";
 
@@ -956,7 +956,8 @@ namespace StormUniversal.Installer
                 progressBar.Value = 10;
                 await Task.Delay(120);
 
-                foreach (var p in Process.GetProcessesByName("STORM DSI DECRYPTOR"))
+                foreach (var pName in new[] { "STORM DS DECRYPTOR", "STORM DSI DECRYPTOR", "STORM DSi Decryptor" })
+                foreach (var p in Process.GetProcessesByName(pName))
                 {
                     try { p.Kill(); p.WaitForExit(1500); } catch { }
                 }

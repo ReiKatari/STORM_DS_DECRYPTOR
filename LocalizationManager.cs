@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
 public static class LocalizationManager
 {
@@ -25,6 +25,10 @@ public static class LocalizationManager
         new LanguageInfo("hi", "हिन्दी")
     };
 
+    public static LanguageInfo[] SupportedLanguages => Languages;
+    public static void SetLanguage(string code) => CurrentLanguage = Strings.ContainsKey(code) ? code : "ru";
+    public static void InitSystemLanguage() => CurrentLanguage = DetectSystemLanguage();
+
     public static string DetectSystemLanguage()
     {
         try
@@ -40,7 +44,7 @@ public static class LocalizationManager
     {
         ["ru"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Сверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare",
             ["DragDropHint"] = "Перетащите сюда файлы .nds, .dsi, .app или целую папку с играми",
             ["AddFiles"] = "Добавить файлы",
@@ -95,13 +99,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Обзор...",
             ["SelectOutputFolderTitle"] = "Выберите папку для сохранения копий",
             ["ResetOutputFolderTooltip"] = "Сбросить на папку по умолчанию",
-            ["TrayShow"] = "Развернуть STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Развернуть STORM DS DECRYPTOR",
             ["TrayAbout"] = "О программе",
             ["TrayExit"] = "Выход",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Приложение свёрнуто в системный трей. Полный выход - через контекстное меню иконки.",
-            ["AboutTitle"] = "О программе STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nСверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare.\n\nРазработано в рамках экосистемы STORM.",
+            ["AboutTitle"] = "О программе STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nСверхбыстрая утилита расшифровки Modcrypt для Nintendo DSi и DSiWare.\n\nРазработано в рамках экосистемы STORM.",
             ["ToolTipAddFiles"] = "Выбрать отдельные файлы ROM (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Сканировать всю папку с играми (включая подкаталоги)",
             ["ToolTipDecryptAll"] = "Запустить параллельную расшифровку всех игр в очереди",
@@ -143,7 +147,7 @@ public static class LocalizationManager
         },
         ["en"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Ultra-fast Modcrypt decryption utility for Nintendo DSi and DSiWare",
             ["DragDropHint"] = "Drag and drop .nds, .dsi, .app files or an entire folder here",
             ["AddFiles"] = "Add files",
@@ -198,13 +202,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Browse...",
             ["SelectOutputFolderTitle"] = "Select folder to save copies",
             ["ResetOutputFolderTooltip"] = "Reset to default folder",
-            ["TrayShow"] = "Show STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Show STORM DS DECRYPTOR",
             ["TrayAbout"] = "About",
             ["TrayExit"] = "Exit",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Application minimized to system tray. Exit via tray icon menu.",
-            ["AboutTitle"] = "About STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUltra-fast Modcrypt decryption utility for Nintendo DSi and DSiWare.\n\nDeveloped within the STORM ecosystem.",
+            ["AboutTitle"] = "About STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUltra-fast Modcrypt decryption utility for Nintendo DSi and DSiWare.\n\nDeveloped within the STORM ecosystem.",
             ["ToolTipAddFiles"] = "Select individual ROM files (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Scan entire folder with games (including subdirectories)",
             ["ToolTipDecryptAll"] = "Start parallel decryption of all games in queue",
@@ -226,7 +230,7 @@ public static class LocalizationManager
         },
         ["de"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Ultraschnelles Modcrypt-Entschlüsselungstool für Nintendo DSi und DSiWare",
             ["DragDropHint"] = "Ziehen Sie .nds-, .dsi-, .app-Dateien oder Ordner hierher",
             ["AddFiles"] = "Dateien hinzufügen",
@@ -281,13 +285,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Durchsuchen...",
             ["SelectOutputFolderTitle"] = "Ordner für Kopien auswählen",
             ["ResetOutputFolderTooltip"] = "Auf Standardordner zurücksetzen",
-            ["TrayShow"] = "STORM DSI DECRYPTOR öffnen",
+            ["TrayShow"] = "STORM DS DECRYPTOR öffnen",
             ["TrayAbout"] = "Über das Programm",
             ["TrayExit"] = "Beenden",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Anwendung in die Taskleiste minimiert. Beenden über das Taskleistenmenü.",
-            ["AboutTitle"] = "Über STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUltraschnelles Modcrypt-Entschlüsselungstool für Nintendo DSi und DSiWare.\n\nEntwickelt im STORM-Ökosystem.",
+            ["AboutTitle"] = "Über STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUltraschnelles Modcrypt-Entschlüsselungstool für Nintendo DSi und DSiWare.\n\nEntwickelt im STORM-Ökosystem.",
             ["ToolTipAddFiles"] = "Einzelne ROM-Dateien auswählen (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Ganzen Spieleordner scannen (inklusive Unterordner)",
             ["ToolTipDecryptAll"] = "Parallele Entschlüsselung aller Spiele in der Warteschlange starten",
@@ -309,7 +313,7 @@ public static class LocalizationManager
         },
         ["fr"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Utilitaire ultra-rapide de décryptage Modcrypt pour Nintendo DSi et DSiWare",
             ["DragDropHint"] = "Glissez-déposez des fichiers .nds, .dsi, .app ou un dossier ici",
             ["AddFiles"] = "Ajouter fichiers",
@@ -364,13 +368,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Parcourir...",
             ["SelectOutputFolderTitle"] = "Sélectionner le dossier pour les copies",
             ["ResetOutputFolderTooltip"] = "Rétablir le dossier par défaut",
-            ["TrayShow"] = "Ouvrir STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Ouvrir STORM DS DECRYPTOR",
             ["TrayAbout"] = "À propos",
             ["TrayExit"] = "Quitter",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Application réduite dans la barre d'état. Quittez via le menu de l'icône.",
-            ["AboutTitle"] = "À propos de STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUtilitaire ultra-rapide de décryptage Modcrypt pour Nintendo DSi et DSiWare.\n\nDéveloppé dans l'écosystème STORM.",
+            ["AboutTitle"] = "À propos de STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUtilitaire ultra-rapide de décryptage Modcrypt pour Nintendo DSi et DSiWare.\n\nDéveloppé dans l'écosystème STORM.",
             ["ToolTipAddFiles"] = "Sélectionner des fichiers ROM individuels (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Analyser un dossier complet de jeux (avec sous-dossiers)",
             ["ToolTipDecryptAll"] = "Lancer le décryptage parallèle de tous les jeux en file",
@@ -392,7 +396,7 @@ public static class LocalizationManager
         },
         ["zh"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "适用于 Nintendo DSi 和 DSiWare 的超快速 Modcrypt 解密工具",
             ["DragDropHint"] = "将 .nds、.dsi、.app 文件或整个文件夹拖放到此处",
             ["AddFiles"] = "添加文件",
@@ -447,13 +451,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "浏览...",
             ["SelectOutputFolderTitle"] = "选择副本保存文件夹",
             ["ResetOutputFolderTooltip"] = "重置为默认文件夹",
-            ["TrayShow"] = "显示 STORM DSI DECRYPTOR",
+            ["TrayShow"] = "显示 STORM DS DECRYPTOR",
             ["TrayAbout"] = "关于程序",
             ["TrayExit"] = "退出",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "应用程序已最小化到系统托盘。通过托盘图标退出。",
-            ["AboutTitle"] = "关于 STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\n适用于 Nintendo DSi 和 DSiWare 的超快速 Modcrypt 解密工具。\n\n由 STORM 生态系统开发。",
+            ["AboutTitle"] = "关于 STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\n适用于 Nintendo DSi 和 DSiWare 的超快速 Modcrypt 解密工具。\n\n由 STORM 生态系统开发。",
             ["ToolTipAddFiles"] = "选择单个 ROM 文件 (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "扫描包含游戏的整个文件夹 (含子目录)",
             ["ToolTipDecryptAll"] = "开始并行解密队列中的所有游戏",
@@ -475,7 +479,7 @@ public static class LocalizationManager
         },
         ["ko"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "닌텐도 DSi 및 DSiWare 전용 초고속 Modcrypt 복호화 유틸리티",
             ["DragDropHint"] = ".nds, .dsi, .app 파일 또는 게임 폴더를 여기에 끌어다 놓으세요",
             ["AddFiles"] = "파일 추가",
@@ -530,13 +534,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "찾아보기...",
             ["SelectOutputFolderTitle"] = "사본 저장 폴더 선택",
             ["ResetOutputFolderTooltip"] = "기본 폴더로 초기화",
-            ["TrayShow"] = "STORM DSI DECRYPTOR 열기",
+            ["TrayShow"] = "STORM DS DECRYPTOR 열기",
             ["TrayAbout"] = "정보",
             ["TrayExit"] = "종료",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "애플리케이션이 시스템 트레이로 최소화되었습니다. 트레이 아이콘 메뉴에서 종료할 수 있습니다.",
-            ["AboutTitle"] = "STORM DSI DECRYPTOR 정보",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\n닌텐도 DSi 및 DSiWare 전용 초고속 Modcrypt 복호화 유틸리티.\n\nSTORM 생태계 기반 개발.",
+            ["AboutTitle"] = "STORM DS DECRYPTOR 정보",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\n닌텐도 DSi 및 DSiWare 전용 초고속 Modcrypt 복호화 유틸리티.\n\nSTORM 생태계 기반 개발.",
             ["ToolTipAddFiles"] = "개별 ROM 파일 선택 (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "게임 폴더 전체 스캔 (하위 디렉터리 포함)",
             ["ToolTipDecryptAll"] = "대기열의 모든 게임 병렬 복호화 시작",
@@ -558,7 +562,7 @@ public static class LocalizationManager
         },
         ["ja"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "ニンテンドーDSiおよびDSiWare向け超高速Modcrypt復号化ユーティリティ",
             ["DragDropHint"] = ".nds、.dsi、.appファイルまたはゲームフォルダをここにドロップ",
             ["AddFiles"] = "ファイル追加",
@@ -613,13 +617,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "参照...",
             ["SelectOutputFolderTitle"] = "コピー保存先フォルダを選択",
             ["ResetOutputFolderTooltip"] = "デフォルトに戻す",
-            ["TrayShow"] = "STORM DSI DECRYPTOR を開く",
+            ["TrayShow"] = "STORM DS DECRYPTOR を開く",
             ["TrayAbout"] = "バージョン情報",
             ["TrayExit"] = "終了",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "システムトレイに最小化されました。トレイアイコンのメニューから完全終了できます。",
-            ["AboutTitle"] = "STORM DSI DECRYPTOR について",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nニンテンドーDSiおよびDSiWare向け超高速Modcrypt復号化ユーティリティ。\n\nSTORM エコシステムにより開発。",
+            ["AboutTitle"] = "STORM DS DECRYPTOR について",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nニンテンドーDSiおよびDSiWare向け超高速Modcrypt復号化ユーティリティ。\n\nSTORM エコシステムにより開発。",
             ["ToolTipAddFiles"] = "個別のROMファイルを選択 (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "ゲームフォルダ全体をスキャン (サブディレクトリ含む)",
             ["ToolTipDecryptAll"] = "キュー内の全ゲームの並列復号化を開始",
@@ -641,7 +645,7 @@ public static class LocalizationManager
         },
         ["es"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Utilidad ultrarrápida de descifrado Modcrypt para Nintendo DSi y DSiWare",
             ["DragDropHint"] = "Arrastra y suelta archivos .nds, .dsi, .app o carpetas aquí",
             ["AddFiles"] = "Añadir archivos",
@@ -696,13 +700,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Examinar...",
             ["SelectOutputFolderTitle"] = "Seleccionar carpeta para copias",
             ["ResetOutputFolderTooltip"] = "Restablecer carpeta por defecto",
-            ["TrayShow"] = "Mostrar STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Mostrar STORM DS DECRYPTOR",
             ["TrayAbout"] = "Acerca de",
             ["TrayExit"] = "Salir",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Aplicación minimizada en la bandeja del sistema. Salida completa desde el menú del icono.",
-            ["AboutTitle"] = "Acerca de STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUtilidad ultrarrápida de descifrado Modcrypt para Nintendo DSi y DSiWare.\n\nDesarrollado en el ecosistema STORM.",
+            ["AboutTitle"] = "Acerca de STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUtilidad ultrarrápida de descifrado Modcrypt para Nintendo DSi y DSiWare.\n\nDesarrollado en el ecosistema STORM.",
             ["ToolTipAddFiles"] = "Seleccionar archivos ROM (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Escanear carpeta completa de juegos (incluyendo subcarpetas)",
             ["ToolTipDecryptAll"] = "Iniciar descifrado paralelo de todos los juegos",
@@ -724,7 +728,7 @@ public static class LocalizationManager
         },
         ["it"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Utility ultra-rapida di decrittazione Modcrypt per Nintendo DSi e DSiWare",
             ["DragDropHint"] = "Trascina qui i file .nds, .dsi, .app o un'intera cartella",
             ["AddFiles"] = "Aggiungi file",
@@ -779,13 +783,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Sfoglia...",
             ["SelectOutputFolderTitle"] = "Seleziona cartella copie",
             ["ResetOutputFolderTooltip"] = "Ripristina cartella predefinita",
-            ["TrayShow"] = "Mostra STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Mostra STORM DS DECRYPTOR",
             ["TrayAbout"] = "Informazioni",
             ["TrayExit"] = "Esci",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Applicazione ridotta a icona nella barra di sistema. Uscita completa dal menu della barra.",
-            ["AboutTitle"] = "Informazioni su STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUtility ultra-rapida di decrittazione Modcrypt per Nintendo DSi e DSiWare.\n\nSviluppato nell'ecosistema STORM.",
+            ["AboutTitle"] = "Informazioni su STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUtility ultra-rapida di decrittazione Modcrypt per Nintendo DSi e DSiWare.\n\nSviluppato nell'ecosistema STORM.",
             ["ToolTipAddFiles"] = "Seleziona singoli file ROM (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Scansiona intera cartella di giochi (sottocartelle incluse)",
             ["ToolTipDecryptAll"] = "Avvia decrittazione parallela di tutti i giochi in coda",
@@ -807,7 +811,7 @@ public static class LocalizationManager
         },
         ["pt"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Utilitário ultrarrápido de descriptografia Modcrypt para Nintendo DSi e DSiWare",
             ["DragDropHint"] = "Arraste e solte arquivos .nds, .dsi, .app ou uma pasta aqui",
             ["AddFiles"] = "Adicionar arquivos",
@@ -862,13 +866,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "Procurar...",
             ["SelectOutputFolderTitle"] = "Selecionar pasta para cópias",
             ["ResetOutputFolderTooltip"] = "Redefinir para pasta padrão",
-            ["TrayShow"] = "Abrir STORM DSI DECRYPTOR",
+            ["TrayShow"] = "Abrir STORM DS DECRYPTOR",
             ["TrayAbout"] = "Sobre",
             ["TrayExit"] = "Sair",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "Aplicativo minimizado na bandeja do sistema. Saída completa pelo menu do ícone.",
-            ["AboutTitle"] = "Sobre o STORM DSI DECRYPTOR",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nUtilitário ultrarrápido de descriptografia Modcrypt para Nintendo DSi e DSiWare.\n\nDesenvolvido no ecossistema STORM.",
+            ["AboutTitle"] = "Sobre o STORM DS DECRYPTOR",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nUtilitário ultrarrápido de descriptografia Modcrypt para Nintendo DSi e DSiWare.\n\nDesenvolvido no ecossistema STORM.",
             ["ToolTipAddFiles"] = "Selecionar arquivos ROM individuais (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "Verificar pasta inteira de jogos (incluindo subpastas)",
             ["ToolTipDecryptAll"] = "Iniciar descriptografia paralela de todos os jogos na fila",
@@ -890,7 +894,7 @@ public static class LocalizationManager
         },
         ["hi"] = new()
         {
-            ["AppTitle"] = "STORM DSI DECRYPTOR",
+            ["AppTitle"] = "STORM DS DECRYPTOR",
             ["Subtitle"] = "Nintendo DSi एवं DSiWare के लिए अल्ट्रा-फास्ट Modcrypt डिक्रिप्शन यूटिलिटी",
             ["DragDropHint"] = ".nds, .dsi, .app फाइलें या पूरा गेम फ़ोल्डर यहाँ खींचें और छोड़ें",
             ["AddFiles"] = "फ़ाइलें जोड़ें",
@@ -945,13 +949,13 @@ public static class LocalizationManager
             ["BrowseFolder"] = "ब्राउज़ करें...",
             ["SelectOutputFolderTitle"] = "प्रतियों के लिए फ़ोल्डर चुनें",
             ["ResetOutputFolderTooltip"] = "डिफ़ॉल्ट फ़ोल्डर पर रीसेट करें",
-            ["TrayShow"] = "STORM DSI DECRYPTOR खोलें",
+            ["TrayShow"] = "STORM DS DECRYPTOR खोलें",
             ["TrayAbout"] = "परिचय",
             ["TrayExit"] = "बाहर निकलें",
-            ["TrayBalloonTitle"] = "STORM DSI DECRYPTOR",
+            ["TrayBalloonTitle"] = "STORM DS DECRYPTOR",
             ["TrayBalloonMsg"] = "एप्लिकेशन सिस्टम ट्रे में न्यूनतम किया गया। ट्रे आइकन मेनू से पूर्ण निकास।",
-            ["AboutTitle"] = "STORM DSI DECRYPTOR परिचय",
-            ["AboutMsg"] = "STORM DSI DECRYPTOR 1.2.1\nNintendo DSi और DSiWare के लिए अल्ट्रा-फास्ट Modcrypt डिक्रिप्शन टूल।\n\nSTORM पारिस्थितिकी तंत्र में विकसित।",
+            ["AboutTitle"] = "STORM DS DECRYPTOR परिचय",
+            ["AboutMsg"] = "STORM DS DECRYPTOR 1.3.0\nNintendo DSi और DSiWare के लिए अल्ट्रा-फास्ट Modcrypt डिक्रिप्शन टूल।\n\nSTORM पारिस्थितिकी तंत्र में विकसित।",
             ["ToolTipAddFiles"] = "अलग-अलग ROM फ़ाइलें चुनें (.nds, .dsi, .app)",
             ["ToolTipAddFolder"] = "पूरा गेम फ़ोल्डर स्कैन करें (उप-फ़ोल्डर सहित)",
             ["ToolTipDecryptAll"] = "कतार में सभी गेम्स का समानांतर डिक्रिप्शन शुरू करें",

@@ -3,26 +3,27 @@ using System.IO;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
-public class AppSettings
+public class UserSettings
 {
     public string OutputDirectory { get; set; } = string.Empty;
     public bool IsInPlace { get; set; } = false;
+    public int ModeIndex { get => IsInPlace ? 1 : 0; set => IsInPlace = value == 1; }
+    public bool VerifyCrc { get; set; } = true;
+    public bool CompatibilityMode { get; set; } = true;
     public bool CreateBackup { get; set; } = false;
     public string ThemeName { get; set; } = "MIDNIGHT";
     public int AccentIndex { get; set; } = 0;
     public int FontIndex { get; set; } = 0;
-    public string LanguageCode { get; set; } = "";
-    public bool CheckUpdatesOnStartup { get; set; } = true;
+    public string LanguageCode { get; set; } = string.Empty;
 }
 
 public static class SettingsManager
 {
-    private static readonly string SettingsDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "STORM DSI DECRYPTOR");
-
+    private static readonly string AppDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+    private static readonly string LegacyDir = Path.Combine(AppDataRoot, "STORM DSI DECRYPTOR");
+    private static readonly string SettingsDir = Path.Combine(AppDataRoot, "STORM DS DECRYPTOR");
     private static readonly string SettingsFile = Path.Combine(SettingsDir, "settings.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -31,41 +32,54 @@ public static class SettingsManager
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly object _syncLock = new();
+    public static UserSettings Current { get; private set; } = new();
 
-    public static AppSettings Current { get; private set; } = new();
-
-    public static void Load()
+    private static void MigrateIfNeeded()
     {
-        lock (_syncLock)
+        try
         {
-            try
+            if (!File.Exists(SettingsFile))
             {
-                if (File.Exists(SettingsFile))
+                string legacyFile = Path.Combine(LegacyDir, "settings.json");
+                if (File.Exists(legacyFile))
                 {
-                    string json = File.ReadAllText(SettingsFile);
-                    var loaded = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-                    if (loaded != null)
-                    {
-                        Current = loaded;
-                    }
+                    Directory.CreateDirectory(SettingsDir);
+                    File.Copy(legacyFile, SettingsFile, overwrite: false);
                 }
             }
-            catch { }
         }
+        catch { }
     }
 
-    public static void Save()
+    public static UserSettings Load()
     {
-        lock (_syncLock)
+        try
         {
-            try
+            MigrateIfNeeded();
+            if (File.Exists(SettingsFile))
             {
-                Directory.CreateDirectory(SettingsDir);
-                string json = JsonSerializer.Serialize(Current, JsonOptions);
-                File.WriteAllText(SettingsFile, json);
+                string json = File.ReadAllText(SettingsFile);
+                var loaded = JsonSerializer.Deserialize<UserSettings>(json, JsonOptions);
+                if (loaded != null)
+                {
+                    Current = loaded;
+                }
             }
-            catch { }
         }
+        catch { }
+        return Current;
+    }
+
+    public static void Save(UserSettings? settings = null)
+    {
+        try
+        {
+            if (settings != null)
+                Current = settings;
+            Directory.CreateDirectory(SettingsDir);
+            string json = JsonSerializer.Serialize(Current, JsonOptions);
+            File.WriteAllText(SettingsFile, json);
+        }
+        catch { }
     }
 }

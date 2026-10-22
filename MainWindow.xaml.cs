@@ -1,1458 +1,1306 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Interop;
-using Microsoft.Win32;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics;
+using Windows.Storage;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
-public partial class MainWindow : Window
+public enum DuplicateChoice
 {
-    private readonly ObservableCollection<RomItem> _games = new();
-    private string? _lastFolderPath;
-    private string? _customOutputDir;
-    private bool _isScanning;
-    private DateTime _lastDropHandledTime = DateTime.MinValue;
+    Overwrite,
+    Skip,
+    Cancel
+}
 
-    private System.Windows.Forms.NotifyIcon? _notifyIcon;
-    private bool _isQuittingFromTray = false;
+public sealed partial class MainWindow : Window
+{
+    public static MainWindow? Instance { get; private set; }
+    private readonly ObservableCollection<RomItem> _allGames = new();
+    private readonly ObservableCollection<RomItem> _filteredGames = new();
+    private StormTrayService? _trayService;
+    private IntPtr _hwnd;
+    private AppWindow? _appWindow;
+    private bool _isLoaded;
+    private bool _isProcessingBatch;
+    private bool _sortAscending = true;
+    private string _currentSortField = "Name";
+
+    private UpdateInfo? _pendingUpdate;
+    private TaskCompletionSource<(DuplicateChoice Choice, bool ApplyToAll)>? _dupTcs;
+
+    // Native Win32 Drag & Drop (WM_DROPFILES) & Subclassing for Elevated/Standard Drag & Drop
+    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    private WndProcDelegate? _wndProcDelegate;
+    private IntPtr _origWndProc;
+
+    private const int GWLP_WNDPROC = -4;
+    private const uint WM_DROPFILES = 0x0233;
+    private const uint WM_GETMINMAXINFO = 0x0024;
+    private const uint MSGFLT_ALLOW = 1;
 
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool ChangeWindowMessageFilterEx(IntPtr hWnd, uint msg, uint action, IntPtr pChangeFilterStruct);
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint DragQueryFile(IntPtr hDrop, uint iFile, [Out] System.Text.StringBuilder? lpszFile, uint cch);
-
-    [DllImport("shell32.dll")]
-    private static extern void DragFinish(IntPtr hDrop);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("shell32.dll")]
     private static extern void DragAcceptFiles(IntPtr hWnd, bool fAccept);
 
-    private const uint WM_DROPFILES = 0x0233;
-    private const uint WM_COPYDATA = 0x004A;
-    private const uint WM_COPYGLOBALDATA = 0x0049;
-    private const uint MSGFLT_ALLOW = 1;
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint DragQueryFile(IntPtr hDrop, uint iFile, StringBuilder? lpszFile, int cch);
+
+    [DllImport("shell32.dll")]
+    private static extern void DragFinish(IntPtr hDrop);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ChangeWindowMessageFilterEx(IntPtr hWnd, uint msg, uint action, IntPtr pChangeFilterStruct);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr LoadImage(IntPtr hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    private const uint IMAGE_ICON = 1;
+    private const uint LR_LOADFROMFILE = 0x0010;
+    private const uint WM_SETICON = 0x0080;
+
+    // Taskbar Progress Bar (ITaskbarList3)
+    [ComImport, Guid("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ITaskbarList3
+    {
+        void HrInit();
+        void AddTab(IntPtr hwnd);
+        void DeleteTab(IntPtr hwnd);
+        void ActivateTab(IntPtr hwnd);
+        void SetActiveAlt(IntPtr hwnd);
+        void MarkFullscreenWindow(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] bool fFullscreen);
+        void SetProgressValue(IntPtr hwnd, ulong ullCompleted, ulong ullTotal);
+        void SetProgressState(IntPtr hwnd, int tbpFlags);
+    }
+
+    [ComImport, Guid("56fdf344-fd6d-11d0-958a-006097c9a090"), ClassInterface(ClassInterfaceType.None)]
+    private class TaskbarInstance { }
+
+    private ITaskbarList3? _taskbarList;
 
     public MainWindow()
     {
+        Instance = this;
         InitializeComponent();
-        GridGames.ItemsSource = _games;
+        InitializeWindowAndChrome();
+        InitializeControlsAndSettings();
+    }
 
-        HistoryManager.Load();
-        GridHistory.ItemsSource = HistoryManager.Items;
+    private void InitializeWindowAndChrome()
+    {
+        _hwnd = WindowNative.GetWindowHandle(this);
+        WindowId wndId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+        _appWindow = AppWindow.GetFromWindowId(wndId);
 
-        // Init System Tray
-        InitSystemTray();
+        Title = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersion}";
+        TxtWindowTitle.Text = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersion}";
 
-        // Load persistent user settings
-        SettingsManager.Load();
+        // Hide system title bar and extend content into title bar
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBarDragArea);
 
-        // Restore custom output folder if previously set and exists
-        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.OutputDirectory) && Directory.Exists(SettingsManager.Current.OutputDirectory))
+        if (_appWindow != null)
         {
-            _customOutputDir = SettingsManager.Current.OutputDirectory;
-            TxtOutFolder.Text = _customOutputDir;
-            TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
-        }
+            _appWindow.Resize(new SizeInt32(1320, 820));
+            CenterWindowOnScreen();
+            _appWindow.Closing += AppWindow_Closing;
 
-        // Restore processing mode & backup setting
-        if (SettingsManager.Current.IsInPlace)
-        {
-            ChkInPlace.IsChecked = true;
-            ChkCopy.IsChecked = false;
-        }
-        else
-        {
-            ChkCopy.IsChecked = true;
-            ChkInPlace.IsChecked = false;
-        }
-        ChkBackup.IsChecked = SettingsManager.Current.CreateBackup;
-
-        // Init themes (9 Themes, MIDNIGHT default)
-        int selectedThemeIdx = 0;
-        for (int i = 0; i < ThemeManager.Themes.Count; i++)
-        {
-            var theme = ThemeManager.Themes[i];
-            CmbTheme.Items.Add(theme.DisplayName);
-            if (!string.IsNullOrWhiteSpace(SettingsManager.Current.ThemeName) &&
-                theme.Name.Equals(SettingsManager.Current.ThemeName, StringComparison.OrdinalIgnoreCase))
+            if (_appWindow.Presenter is OverlappedPresenter presenter)
             {
-                selectedThemeIdx = i;
+                presenter.IsResizable = true;
+                presenter.IsMaximizable = true;
+                presenter.IsMinimizable = true;
             }
         }
-        CmbTheme.SelectedIndex = selectedThemeIdx;
-        ThemeManager.ApplyTheme(ThemeManager.Themes[selectedThemeIdx].Name);
 
-        // Init accents (13 Accents, Violet default)
-        foreach (var acc in ThemeManager.Accents)
+        // Load high-res app icons everywhere (Rule 13)
+        try
         {
-            CmbAccent.Items.Add(acc.Name);
-        }
-        int selectedAccent = Math.Clamp(SettingsManager.Current.AccentIndex, 0, ThemeManager.Accents.Length - 1);
-        CmbAccent.SelectedIndex = selectedAccent;
-        ThemeManager.ApplyAccent(selectedAccent);
+            string baseDir = AppContext.BaseDirectory;
+            string icoPath = Path.Combine(baseDir, "app_icon.ico");
+            string pngPath = Path.Combine(baseDir, "icon.png");
 
-        // Init fonts (10 Fonts, Inter Variable default)
-        foreach (var font in ThemeManager.Fonts)
-        {
-            CmbFont.Items.Add(font.DisplayName);
-        }
-        int selectedFont = Math.Clamp(SettingsManager.Current.FontIndex, 0, ThemeManager.Fonts.Length - 1);
-        CmbFont.SelectedIndex = selectedFont;
-        ThemeManager.ApplyFont(selectedFont);
-
-        // Init languages (11 Languages, OS default or saved)
-        string activeLang = !string.IsNullOrWhiteSpace(SettingsManager.Current.LanguageCode)
-            ? SettingsManager.Current.LanguageCode
-            : LocalizationManager.DetectSystemLanguage();
-
-        int langIdx = 0;
-        for (int i = 0; i < LocalizationManager.Languages.Length; i++)
-        {
-            var l = LocalizationManager.Languages[i];
-            CmbLang.Items.Add(l.DisplayName);
-            if (l.Code.Equals(activeLang, StringComparison.OrdinalIgnoreCase))
+            if (File.Exists(icoPath))
             {
-                langIdx = i;
+                _appWindow?.SetIcon(icoPath);
+                IntPtr hIconSmall = LoadImage(IntPtr.Zero, icoPath, IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
+                IntPtr hIconBig = LoadImage(IntPtr.Zero, icoPath, IMAGE_ICON, 48, 48, LR_LOADFROMFILE);
+                if (hIconSmall != IntPtr.Zero) SendMessage(_hwnd, WM_SETICON, (IntPtr)0, hIconSmall);
+                if (hIconBig != IntPtr.Zero) SendMessage(_hwnd, WM_SETICON, (IntPtr)1, hIconBig);
+            }
+
+            if (File.Exists(pngPath))
+            {
+                var bmp = new BitmapImage(new Uri(pngPath));
+                ImgTitleBarIcon.Source = bmp;
+                ImgHeaderLogo.Source = bmp;
+                ImgModalLogo.Source = bmp;
             }
         }
-        LocalizationManager.CurrentLanguage = LocalizationManager.Languages[langIdx].Code;
-        CmbLang.SelectedIndex = langIdx;
+        catch { }
 
-        UpdateLocalization();
-        UpdateStats();
-        UpdateHistoryStats();
-        StateChanged += MainWindow_StateChanged;
-
-        // Background automatic check for updates from GitHub (silent, non-blocking)
-        Loaded += (s, e) =>
+        // Enable Win32 Drag & Drop (even when elevated via UAC)
+        try
         {
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(2500);
-                await UpdateManager.CheckForUpdatesAsync(this, silent: true);
-            });
+            DragAcceptFiles(_hwnd, true);
+            ChangeWindowMessageFilterEx(_hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
+            ChangeWindowMessageFilterEx(_hwnd, 0x0049 /* WM_COPYGLOBALDATA */, MSGFLT_ALLOW, IntPtr.Zero);
+            _wndProcDelegate = CustomWndProc;
+            _origWndProc = SetWindowLongPtr(_hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
+        }
+        catch { }
+
+        // Initialize Taskbar Progress
+        try
+        {
+            _taskbarList = (ITaskbarList3)new TaskbarInstance();
+            _taskbarList.HrInit();
+        }
+        catch { }
+
+        // Initialize Pure Win32 System Tray Service (Rule 1)
+        _trayService = new StormTrayService(_hwnd)
+        {
+            OnRestoreRequested = RestoreFromTray,
+            OnCheckUpdatesRequested = () => DispatcherQueue.TryEnqueue(() => _ = UpdateManager.CheckForUpdatesAsync(silent: false)),
+            OnAboutRequested = () => DispatcherQueue.TryEnqueue(ShowAboutModal),
+            OnExitRequested = ExitApplicationFromTray,
+            OnFilesDropped = files => DispatcherQueue.TryEnqueue(() => _ = AddPathsAsync(files))
         };
     }
 
-    private void InitSystemTray()
+    private void CenterWindowOnScreen()
     {
         try
         {
-            _notifyIcon = new System.Windows.Forms.NotifyIcon
+            if (_appWindow == null) return;
+            var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+            if (area != null)
             {
-                Text = "STORM DSI DECRYPTOR 1.2.1",
-                Visible = true
-            };
-
-            try
-            {
-                var iconUri = new Uri("pack://application:,,,/AppIcon.ico");
-                var streamInfo = Application.GetResourceStream(iconUri);
-                if (streamInfo != null)
-                {
-                    _notifyIcon.Icon = new System.Drawing.Icon(streamInfo.Stream);
-                }
+                int x = area.WorkArea.X + (area.WorkArea.Width - _appWindow.Size.Width) / 2;
+                int y = area.WorkArea.Y + (area.WorkArea.Height - _appWindow.Size.Height) / 2;
+                _appWindow.Move(new PointInt32(Math.Max(0, x), Math.Max(0, y)));
             }
-            catch
-            {
-                if (File.Exists("AppIcon.ico"))
-                    _notifyIcon.Icon = new System.Drawing.Icon("AppIcon.ico");
-                else
-                    _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
-            }
-
-            UpdateTrayMenu();
-
-            _notifyIcon.DoubleClick += (s, e) => RestoreFromTray();
-            _notifyIcon.MouseClick += (s, e) =>
-            {
-                if (e.Button == System.Windows.Forms.MouseButtons.Left)
-                {
-                    RestoreFromTray();
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[InitSystemTray Error]: {ex.Message}");
-        }
-    }
-
-    private void UpdateTrayMenu()
-    {
-        if (_notifyIcon == null) return;
-        var menuFont = System.Drawing.SystemFonts.MenuFont ?? new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular);
-        var boldMenuFont = new System.Drawing.Font(menuFont, System.Drawing.FontStyle.Bold);
-
-        var menu = new System.Windows.Forms.ContextMenuStrip
-        {
-            BackColor = System.Drawing.Color.FromArgb(20, 16, 38),
-            ForeColor = System.Drawing.Color.White,
-            ShowImageMargin = false,
-            Font = menuFont,
-            Renderer = new StormDarkMenuRenderer(System.Drawing.Color.FromArgb(139, 92, 246))
-        };
-
-        var itemShow = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayShow"), null, (s, e) => RestoreFromTray())
-        {
-            Font = boldMenuFont
-        };
-        var itemCheckUpdates = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayCheckUpdates"), null, async (s, e) =>
-        {
-            RestoreFromTray();
-            await UpdateManager.CheckForUpdatesAsync(this, silent: false);
-        })
-        {
-            Font = menuFont
-        };
-        var itemAbout = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayAbout"), null, (s, e) => ShowAbout())
-        {
-            Font = menuFont
-        };
-        var itemExit = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayExit"), null, (s, e) => QuitApplication())
-        {
-            Font = menuFont
-        };
-
-        menu.Items.Add(itemShow);
-        menu.Items.Add(itemCheckUpdates);
-        menu.Items.Add(itemAbout);
-        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add(itemExit);
-
-        _notifyIcon.ContextMenuStrip = menu;
-    }
-
-    public void RestoreFromTray()
-    {
-        Show();
-        WindowState = WindowState.Normal;
-        Activate();
-    }
-
-    private async void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
-    {
-        BtnCheckUpdates.IsEnabled = false;
-        try
-        {
-            await UpdateManager.CheckForUpdatesAsync(this, silent: false);
-        }
-        finally
-        {
-            BtnCheckUpdates.IsEnabled = true;
-        }
-    }
-
-    private void BtnAbout_Click(object sender, RoutedEventArgs e)
-    {
-        ShowAbout();
-    }
-
-    public void ShowAbout()
-    {
-        RestoreFromTray();
-        StormMessageBox.Show(
-            this,
-            LocalizationManager.Get("AboutMsg"),
-            LocalizationManager.Get("AboutTitle"),
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
-
-    public void QuitApplication()
-    {
-        _isQuittingFromTray = true;
-        if (_notifyIcon != null)
-        {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-            _notifyIcon = null;
-        }
-        Application.Current.Shutdown();
-    }
-
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        // Enforce Close-to-Tray law: complete exit ONLY from tray context menu
-        if (!_isQuittingFromTray)
-        {
-            e.Cancel = true;
-            Hide();
-            try
-            {
-                _notifyIcon?.ShowBalloonTip(
-                    1500,
-                    LocalizationManager.Get("TrayBalloonTitle"),
-                    LocalizationManager.Get("TrayBalloonMsg"),
-                    System.Windows.Forms.ToolTipIcon.Info);
-            }
-            catch { }
-            return;
-        }
-
-        if (_notifyIcon != null)
-        {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-            _notifyIcon = null;
-        }
-        base.OnClosing(e);
-    }
-
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        try
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
-            ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
-            ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
-            DragAcceptFiles(hwnd, true);
-
-            var source = HwndSource.FromHwnd(hwnd);
-            source?.AddHook(WndProc);
         }
         catch { }
     }
 
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
-        if (msg == (int)WM_DROPFILES)
+        if (msg == WM_DROPFILES)
         {
             IntPtr hDrop = wParam;
-            try
+            uint count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
+            var paths = new List<string>();
+            for (uint i = 0; i < count; i++)
             {
-                if ((DateTime.UtcNow - _lastDropHandledTime).TotalMilliseconds < 500)
+                var sb = new StringBuilder(1024);
+                if (DragQueryFile(hDrop, i, sb, sb.Capacity) > 0)
                 {
-                    handled = true;
-                    return IntPtr.Zero;
-                }
-
-                uint count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
-                var files = new List<string>();
-                for (uint i = 0; i < count; i++)
-                {
-                    var sb = new System.Text.StringBuilder(1024);
-                    if (DragQueryFile(hDrop, i, sb, 1024) > 0)
-                    {
-                        files.Add(sb.ToString());
-                    }
-                }
-
-                if (files.Count > 0)
-                {
-                    Dispatcher.BeginInvoke(() =>
-                    {
-                        TabBtnQueue.IsChecked = true;
-                        TabBtnQueue_Click(this, new RoutedEventArgs());
-                        AddPaths(files.ToArray());
-                    });
+                    paths.Add(sb.ToString());
                 }
             }
-            catch (Exception ex)
+            DragFinish(hDrop);
+            if (paths.Count > 0)
             {
-                Debug.WriteLine($"[WM_DROPFILES Error]: {ex.Message}");
+                DispatcherQueue.TryEnqueue(() => _ = AddPathsAsync(paths));
             }
-            finally
-            {
-                DragFinish(hDrop);
-            }
-            handled = true;
             return IntPtr.Zero;
         }
-
-        return IntPtr.Zero;
+        return CallWindowProc(_origWndProc, hWnd, msg, wParam, lParam);
     }
 
-    private void UpdateLocalization()
+    private void InitializeControlsAndSettings()
     {
-        TxtSubtitle.Text = LocalizationManager.Get("Subtitle");
-        TxtDragDropHint.Text = LocalizationManager.Get("DragDropHint");
+        HistoryManager.Initialize(DispatcherQueue);
+        ListGames.ItemsSource = _filteredGames;
+        ListHistory.ItemsSource = HistoryManager.Items;
 
-        BtnAddFiles.Content = LocalizationManager.Get("AddFiles");
-        BtnAddFolder.Content = LocalizationManager.Get("AddFolder");
-        BtnClear.Content = LocalizationManager.Get("ClearList");
-        BtnDecrypt.Content = LocalizationManager.Get("DecryptAll");
-        BtnOpenFolder.Content = LocalizationManager.Get("OpenFolder");
+        var settings = SettingsManager.Load();
 
-        BtnAddFiles.ToolTip = LocalizationManager.Get("ToolTipAddFiles");
-        BtnAddFolder.ToolTip = LocalizationManager.Get("ToolTipAddFolder");
-        BtnClear.ToolTip = LocalizationManager.Get("ToolTipClearList");
-        BtnDecrypt.ToolTip = LocalizationManager.Get("ToolTipDecryptAll");
-        BtnOpenFolder.ToolTip = LocalizationManager.Get("ToolTipOpenFolder");
-        ChkCopy.ToolTip = LocalizationManager.Get("ToolTipModeCopy");
-        ChkInPlace.ToolTip = LocalizationManager.Get("ToolTipModeInPlace");
-        ChkBackup.ToolTip = LocalizationManager.Get("ToolTipBackup");
-        BorderOutFolder.ToolTip = LocalizationManager.Get("ToolTipOutFolder");
-        BtnBrowseOutFolder.ToolTip = LocalizationManager.Get("ToolTipBrowseFolder");
-        BtnResetOutFolder.ToolTip = LocalizationManager.Get("ResetOutputFolderTooltip");
-        BtnMinimize.ToolTip = LocalizationManager.Get("ToolTipMinimize");
-        BtnMaximize.ToolTip = LocalizationManager.Get("ToolTipMaximize");
-        BtnClose.ToolTip = LocalizationManager.Get("ToolTipClose");
-        TabBtnQueue.ToolTip = LocalizationManager.Get("ToolTipTabQueue");
-        TabBtnHistory.ToolTip = LocalizationManager.Get("ToolTipTabHistory");
-        BtnClearHistory.ToolTip = LocalizationManager.Get("ToolTipClearHistory");
-        BtnDeleteHistory.ToolTip = LocalizationManager.Get("ToolTipDeleteHistory");
-        BtnOpenHistoryFolder.ToolTip = LocalizationManager.Get("ShowInExplorer");
-        CmbTheme.ToolTip = LocalizationManager.Get("ToolTipTheme");
-        CmbAccent.ToolTip = LocalizationManager.Get("ToolTipAccent");
-        CmbFont.ToolTip = LocalizationManager.Get("ToolTipFont");
-        CmbLang.ToolTip = LocalizationManager.Get("ToolTipLang");
-        BtnCheckUpdates.ToolTip = LocalizationManager.Get("ToolTipCheckUpdates");
-        BtnAbout.ToolTip = LocalizationManager.Get("ToolTipAbout");
-
-        ChkCopy.Content = LocalizationManager.Get("ModeCopy");
-        ChkInPlace.Content = LocalizationManager.Get("ModeInPlace");
-        LblOutFolder.Text = LocalizationManager.Get("OutputFolderLabel");
-        BtnBrowseOutFolder.Content = LocalizationManager.Get("BrowseFolder");
-        BtnResetOutFolder.ToolTip = LocalizationManager.Get("ResetOutputFolderTooltip");
-
-        if (string.IsNullOrWhiteSpace(_customOutputDir))
+        // Populate Themes
+        CmbTheme.Items.Clear();
+        int themeIdx = 0;
+        for (int i = 0; i < ThemeManager.Themes.Count; i++)
         {
-            TxtOutFolder.Text = LocalizationManager.Get("OutputFolderDefault");
+            CmbTheme.Items.Add(ThemeManager.Themes[i].Name);
+            if (ThemeManager.Themes[i].Name.Equals(settings.ThemeName, StringComparison.OrdinalIgnoreCase))
+                themeIdx = i;
         }
-        UpdateModeUI();
+        CmbTheme.SelectedIndex = themeIdx;
 
-        LblTotalGames.Text = LocalizationManager.Get("TotalGames");
-        LblEncrypted.Text = LocalizationManager.Get("EncryptedCount");
-        LblDecrypted.Text = LocalizationManager.Get("DecryptedCount");
-        LblTheme.Text = LocalizationManager.Get("ThemeLabel");
-        LblLang.Text = LocalizationManager.Get("LangLabel");
-        LblAccent.Text = LocalizationManager.Get("AccentLabel");
-        LblFont.Text = LocalizationManager.Get("FontLabel");
+        // Populate Accents
+        CmbAccent.Items.Clear();
+        foreach (var acc in ThemeManager.Accents)
+            CmbAccent.Items.Add(acc.Name);
+        CmbAccent.SelectedIndex = Math.Clamp(settings.AccentIndex, 0, ThemeManager.Accents.Length - 1);
 
-        ColFileName.Header = LocalizationManager.Get("ColFileName");
-        ColTitle.Header = LocalizationManager.Get("ColTitle");
-        ColCode.Header = LocalizationManager.Get("ColCode");
-        ColSize.Header = LocalizationManager.Get("ColSize");
-        ColStatus.Header = LocalizationManager.Get("ColStatus");
-        MenuDeleteSelected.Header = LocalizationManager.Get("MenuDeleteSelected");
-        MenuClearAll.Header = LocalizationManager.Get("MenuClearAll");
+        // Populate Fonts
+        CmbFont.Items.Clear();
+        foreach (var f in ThemeManager.Fonts)
+            CmbFont.Items.Add(f.Name);
+        CmbFont.SelectedIndex = Math.Clamp(settings.FontIndex, 0, ThemeManager.Fonts.Length - 1);
 
-        // History localization
-        TxtTabQueue.Text = LocalizationManager.Get("TabQueue");
-        TxtTabHistory.Text = LocalizationManager.Get("TabHistory");
-        TxtHistoryEmpty.Text = LocalizationManager.Get("HistoryEmpty");
-        BtnClearHistory.Content = LocalizationManager.Get("ClearHistory");
-        BtnDeleteHistory.Content = LocalizationManager.Get("MenuDeleteSelected");
-        BtnOpenHistoryFolder.Content = LocalizationManager.Get("ShowInExplorer");
+        // Populate Languages
+        CmbLang.Items.Clear();
+        int langIdx = 0;
+        for (int i = 0; i < LocalizationManager.SupportedLanguages.Length; i++)
+        {
+            CmbLang.Items.Add(LocalizationManager.SupportedLanguages[i].DisplayName);
+            if (LocalizationManager.SupportedLanguages[i].Code.Equals(LocalizationManager.CurrentLanguage, StringComparison.OrdinalIgnoreCase))
+                langIdx = i;
+        }
+        CmbLang.SelectedIndex = langIdx;
 
-        ColHistName.Header = LocalizationManager.Get("ColFileName");
-        ColHistTitle.Header = LocalizationManager.Get("ColTitle");
-        ColHistCode.Header = LocalizationManager.Get("ColCode");
-        ColHistDate.Header = LocalizationManager.Get("ColProcessedAt");
-        ColHistSize.Header = LocalizationManager.Get("ColSize");
-        ColHistStatus.Header = LocalizationManager.Get("ColStatus");
+        // Restore checkboxes & output folder (Rule 15)
+        ChkVerifyCrc.IsChecked = settings.VerifyCrc;
+        ChkCompatibility.IsChecked = settings.CompatibilityMode;
+        ChkBackup.IsChecked = settings.CreateBackup;
 
-        BtnCheckUpdates.Content = LocalizationManager.Get("BtnCheckUpdates") ?? "🔄 Обновления";
-        BtnAbout.Content = LocalizationManager.Get("TrayAbout") ?? "ℹ️ О программе";
+        string defaultOut = !string.IsNullOrWhiteSpace(settings.OutputDirectory)
+            ? settings.OutputDirectory
+            : Path.Combine(AppContext.BaseDirectory, "Decrypted_ROMs");
+        TxtOutputDir.Text = defaultOut;
 
-        UpdateTrayMenu();
+        ApplyLocalization();
+        CmbMode.SelectedIndex = Math.Clamp(settings.ModeIndex, 0, 1);
+        UpdateOutputPanelState();
+
+        ThemeManager.ThemeChanged += OnThemeChanged;
+        OnThemeChanged();
+
+        _isLoaded = true;
+
+        // Load initial command-line arguments if any
+        if (App.FirstLaunchArgs.Length > 0)
+        {
+            _ = AddPathsAsync(App.FirstLaunchArgs);
+        }
+
+        // Silent background update check
+        _ = CheckForUpdatesAsync(silent: true);
+    }
+
+    private void OnThemeChanged()
+    {
+        RootPage.RequestedTheme = ThemeManager.CurrentPalette.IsLight ? ElementTheme.Light : ElementTheme.Dark;
+        RootPage.FontFamily = new FontFamily(ThemeManager.CurrentFont.FamilyName);
+    }
+
+    private void SaveCurrentSettings()
+    {
+        if (!_isLoaded) return;
+        string themeName = CmbTheme.SelectedItem as string ?? "MIDNIGHT";
+        int accentIdx = Math.Max(0, CmbAccent.SelectedIndex);
+        int fontIdx = Math.Max(0, CmbFont.SelectedIndex);
+        int langIdx = Math.Clamp(CmbLang.SelectedIndex, 0, LocalizationManager.SupportedLanguages.Length - 1);
+        string langCode = LocalizationManager.SupportedLanguages[langIdx].Code;
+
+        SettingsManager.Save(new UserSettings
+        {
+            OutputDirectory = TxtOutputDir.Text,
+            ModeIndex = Math.Max(0, CmbMode.SelectedIndex),
+            VerifyCrc = ChkVerifyCrc.IsChecked == true,
+            CompatibilityMode = ChkCompatibility.IsChecked == true,
+            CreateBackup = ChkBackup.IsChecked == true,
+            ThemeName = themeName,
+            AccentIndex = accentIdx,
+            FontIndex = fontIdx,
+            LanguageCode = langCode
+        });
+    }
+
+    // ==================== LOCALIZATION & TOOLTIPS (Rule 3 & 14) ====================
+
+    private void ApplyLocalization()
+    {
+        string G(string k) => LocalizationManager.Get(k);
+
+        TxtSubHeader.Text = G("Subtitle");
+        LblTheme.Text = G("ThemeLabel");
+        LblAccent.Text = G("AccentLabel");
+        LblFont.Text = G("FontLabel");
+        LblLang.Text = G("LangLabel");
+
+        TxtBtnAddFiles.Text = G("AddFiles");
+        TxtBtnAddFolder.Text = G("AddFolder");
+        TxtBtnClearQueue.Text = G("ClearList");
+
+        LblStatTotal.Text = G("TotalGames") + ":";
+        LblStatEnc.Text = G("EncryptedCount") + ":";
+        LblStatDone.Text = G("DecryptedCount") + ":";
+
+        UpdateTabHeaders();
+
+        HdrColFile.Text = $"{G("ColFileName")} / {G("ColTitle")} ↕";
+        HdrColCode.Text = $"{G("ColCode")} ↕";
+        HdrColFormat.Text = "FORMAT ↕";
+        HdrColSize.Text = $"{G("ColSize")} ↕";
+        HdrColStatus.Text = $"{G("ColStatus")} ↕";
+        HdrColActions.Text = "ACTIONS";
+
+        HdrHistDate.Text = G("ColProcessedAt");
+        HdrHistFile.Text = G("ColFileName");
+        HdrHistCode.Text = G("ColCode");
+        HdrHistFormat.Text = "FORMAT";
+        HdrHistSize.Text = G("ColSize");
+        HdrHistResult.Text = G("ColStatus");
+        HdrHistActions.Text = G("OpenFolder");
+        BtnClearHistory.Content = $"🗑 {G("ClearHistory")}";
+
+        TxtDropTitle.Text = G("DragDropHint");
+        TxtDropSub.Text = G("Subtitle");
+
+        int savedMode = Math.Max(0, CmbMode.SelectedIndex);
+        CmbMode.Items.Clear();
+        CmbMode.Items.Add(G("ModeCopy"));
+        CmbMode.Items.Add(G("ModeInPlace"));
+        CmbMode.SelectedIndex = savedMode;
+
+        LblOutputFolder.Text = G("OutputFolderLabel");
+        BtnBrowseOut.Content = G("BrowseFolder");
+        TxtBtnStartBatch.Text = G("DecryptAll").ToUpperInvariant();
+
+        if (!_isProcessingBatch)
+            TxtStatusFooter.Text = G("DragDropHint");
+
+        // Styled Tooltips on ALL controls (Rule 14)
+        ToolTipService.SetToolTip(BtnWinMinimize, G("ToolTipMinimize"));
+        ToolTipService.SetToolTip(BtnWinMaximize, G("ToolTipMaximize"));
+        ToolTipService.SetToolTip(BtnWinClose, G("ToolTipClose"));
+        ToolTipService.SetToolTip(CmbTheme, G("ToolTipTheme"));
+        ToolTipService.SetToolTip(CmbAccent, G("ToolTipAccent"));
+        ToolTipService.SetToolTip(CmbFont, G("ToolTipFont"));
+        ToolTipService.SetToolTip(CmbLang, G("ToolTipLang"));
+        ToolTipService.SetToolTip(BtnCheckUpdate, G("ToolTipCheckUpdates"));
+        ToolTipService.SetToolTip(BtnAbout, G("ToolTipAbout"));
+
+        ToolTipService.SetToolTip(BtnAddFiles, G("ToolTipAddFiles"));
+        ToolTipService.SetToolTip(BtnAddFolder, G("ToolTipAddFolder"));
+        ToolTipService.SetToolTip(BtnClearQueue, G("ToolTipClearList"));
+        ToolTipService.SetToolTip(BtnExportReport, "CSV / JSON Report");
+        ToolTipService.SetToolTip(TxtSearch, "Search / Filter Queue");
+        ToolTipService.SetToolTip(BtnTabQueue, G("ToolTipTabQueue"));
+        ToolTipService.SetToolTip(BtnTabHistory, G("ToolTipTabHistory"));
+
+        ToolTipService.SetToolTip(CmbMode, G("ToolTipModeCopy"));
+        ToolTipService.SetToolTip(ChkVerifyCrc, "CRC16 Header & Secure Area Validation");
+        ToolTipService.SetToolTip(ChkCompatibility, "NDS / TWiLight Menu++ Compatibility Patch");
+        ToolTipService.SetToolTip(ChkBackup, G("ToolTipBackup"));
+        ToolTipService.SetToolTip(TxtOutputDir, G("ToolTipOutFolder"));
+        ToolTipService.SetToolTip(BtnBrowseOut, G("ToolTipBrowseFolder"));
+        ToolTipService.SetToolTip(BtnOpenOut, G("ToolTipOpenFolder"));
+        ToolTipService.SetToolTip(BtnStartBatch, G("ToolTipDecryptAll"));
+        ToolTipService.SetToolTip(BtnClearHistory, G("ToolTipClearHistory"));
+    }
+
+    private void UpdateTabHeaders()
+    {
+        BtnTabQueue.Content = $"{LocalizationManager.Get("TabQueue")} ({_allGames.Count})";
+        BtnTabHistory.Content = $"{LocalizationManager.Get("TabHistory")} ({HistoryManager.Items.Count})";
     }
 
     private void UpdateStats()
     {
-        TxtTotalCount.Text = _games.Count.ToString();
-        TxtEncryptedCount.Text = _games.Count(g => g.IsEncrypted).ToString();
-        TxtDecryptedCount.Text = _games.Count(g => !g.IsEncrypted).ToString();
-        TxtTabQueueCount.Text = $" ({_games.Count})";
-
-        bool hasItems = _games.Count > 0;
-        EmptyHintPanel.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
-        GridGames.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
-
-        bool isCopy = ChkCopy.IsChecked == true;
-        BtnDecrypt.IsEnabled = isCopy ? hasItems : _games.Any(g => g.IsEncrypted || g.NeedsCompatibilityPatch);
+        TxtStatTotal.Text = _allGames.Count.ToString();
+        TxtStatEnc.Text = _allGames.Count(g => g.IsEncrypted).ToString();
+        TxtStatDone.Text = _allGames.Count(g => g.IsCompleted).ToString();
+        EmptyStateOverlay.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateTabHeaders();
     }
 
-    private void UpdateHistoryStats()
+    // ==================== WINDOW CAPTION & TRAY HANDLERS (Rule 1) ====================
+
+    private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        int count = HistoryManager.Items.Count;
-        TxtHistTotalCount.Text = count.ToString();
-        TxtHistSuccessCount.Text = HistoryManager.Items.Count(x =>
-            x.Status.Contains("Успешно", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("Success", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("Erfolgreich", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("succès", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("成功", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("성공", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("éxito", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("successo", StringComparison.OrdinalIgnoreCase) ||
-            x.Status.Contains("sucesso", StringComparison.OrdinalIgnoreCase)).ToString();
-        TxtHistReadyCount.Text = count.ToString();
-        TxtTabHistoryCount.Text = $" ({count})";
-
-        bool hasHist = count > 0;
-        EmptyHistoryHintPanel.Visibility = hasHist ? Visibility.Collapsed : Visibility.Visible;
-        GridHistory.Visibility = hasHist ? Visibility.Visible : Visibility.Collapsed;
-        BtnClearHistory.IsEnabled = hasHist;
-        BtnDeleteHistory.IsEnabled = hasHist;
-    }
-
-    private void TabBtnQueue_Click(object sender, RoutedEventArgs e)
-    {
-        QueueViewPanel.Visibility = Visibility.Visible;
-        QueueStatsPanel.Visibility = Visibility.Visible;
-        QueueActionsPanel.Visibility = Visibility.Visible;
-
-        HistoryViewPanel.Visibility = Visibility.Collapsed;
-        HistoryStatsPanel.Visibility = Visibility.Collapsed;
-        HistoryActionsPanel.Visibility = Visibility.Collapsed;
-
-        UpdateStats();
-    }
-
-    private void TabBtnHistory_Click(object sender, RoutedEventArgs e)
-    {
-        QueueViewPanel.Visibility = Visibility.Collapsed;
-        QueueStatsPanel.Visibility = Visibility.Collapsed;
-        QueueActionsPanel.Visibility = Visibility.Collapsed;
-
-        HistoryViewPanel.Visibility = Visibility.Visible;
-        HistoryStatsPanel.Visibility = Visibility.Visible;
-        HistoryActionsPanel.Visibility = Visibility.Visible;
-
-        UpdateHistoryStats();
-        StateChanged += MainWindow_StateChanged;
-    }
-
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2)
+        if (_trayService == null || !_trayService.IsQuittingFromTray)
         {
-            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        }
-        else
-        {
-            DragMove();
+            args.Cancel = true;
+            ShowWindow(_hwnd, 0 /* SW_HIDE */);
         }
     }
 
-    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    private void BtnMinimize_Click(object sender, RoutedEventArgs e)
     {
-        if (WindowState == WindowState.Maximized)
+        if (_appWindow?.Presenter is OverlappedPresenter p)
+            p.Minimize();
+    }
+
+    private void BtnMaximize_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appWindow?.Presenter is OverlappedPresenter p)
         {
-            IconMaximizePath.Data = (System.Windows.Media.Geometry)FindResource("IconRestore");
-            BtnMaximize.ToolTip = LocalizationManager.Get("BtnRestoreTooltip") ?? "Восстановить окно";
-        }
-        else
-        {
-            IconMaximizePath.Data = (System.Windows.Media.Geometry)FindResource("IconMaximize");
-            BtnMaximize.ToolTip = LocalizationManager.Get("BtnMaximizeTooltip") ?? "Развернуть на весь экран";
+            if (p.State == OverlappedPresenterState.Maximized)
+                p.Restore();
+            else
+                p.Maximize();
         }
     }
 
-    private void BtnMinimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-    private void BtnMaximize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     private void BtnClose_Click(object sender, RoutedEventArgs e)
     {
-        // Minimize to tray on close button click
-        Hide();
-        try
+        // Close-to-Tray (Rule 1)
+        ShowWindow(_hwnd, 0 /* SW_HIDE */);
+    }
+
+    private void BtnWinClose_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        BtnWinClose.Background = ThemeManager.BrushFromHex("#E11D48");
+    }
+
+    private void BtnWinClose_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        BtnWinClose.Background = new SolidColorBrush(Colors.Transparent);
+    }
+
+    public void RestoreFromTray()
+    {
+        DispatcherQueue.TryEnqueue(() =>
         {
-            _notifyIcon?.ShowBalloonTip(
-                1500,
-                LocalizationManager.Get("TrayBalloonTitle"),
-                LocalizationManager.Get("TrayBalloonMsg"),
-                System.Windows.Forms.ToolTipIcon.Info);
+            ShowWindow(_hwnd, 9 /* SW_RESTORE */);
+            SetForegroundWindow(_hwnd);
+            Activate();
+        });
+    }
+
+    private void ExitApplicationFromTray()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_trayService != null) { _trayService.IsQuittingFromTray = true; _trayService.Dispose(); }
+            Application.Current.Exit();
+        });
+    }
+
+    // ==================== APPEARANCE COMBOBOX HANDLERS ====================
+
+    private void CmbTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbTheme.SelectedItem is not string themeName) return;
+        ThemeManager.ApplyTheme(themeName);
+        SaveCurrentSettings();
+    }
+
+    private void CmbAccent_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbAccent.SelectedIndex < 0) return;
+        ThemeManager.ApplyAccent(CmbAccent.SelectedIndex);
+        SaveCurrentSettings();
+    }
+
+    private void CmbFont_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbFont.SelectedIndex < 0) return;
+        ThemeManager.ApplyFont(CmbFont.SelectedIndex);
+        SaveCurrentSettings();
+    }
+
+    private void CmbLang_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbLang.SelectedIndex < 0) return;
+        string code = LocalizationManager.SupportedLanguages[CmbLang.SelectedIndex].Code;
+        LocalizationManager.SetLanguage(code);
+        ApplyLocalization();
+        SaveCurrentSettings();
+    }
+
+    private void CmbMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded) return;
+        UpdateOutputPanelState();
+        SaveCurrentSettings();
+    }
+
+    private void Options_Changed(object sender, RoutedEventArgs e)
+    {
+        SaveCurrentSettings();
+    }
+
+    private void UpdateOutputPanelState()
+    {
+        bool isSeparate = CmbMode.SelectedIndex == 0;
+        PanelOutputFolder.Opacity = isSeparate ? 1.0 : 0.45;
+        BtnBrowseOut.IsEnabled = isSeparate;
+    }
+
+    // ==================== TAB SWITCHING, SEARCH & SORTING ====================
+
+    private void BtnTabQueue_Click(object sender, RoutedEventArgs e)
+    {
+        PanelQueueView.Visibility = Visibility.Visible;
+        PanelHistoryView.Visibility = Visibility.Collapsed;
+        BtnTabQueue.Background = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
+        BtnTabQueue.Foreground = new SolidColorBrush(Colors.White);
+        BtnTabHistory.Background = (Brush)Application.Current.Resources["BgSecondaryBrush"];
+        BtnTabHistory.Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+    }
+
+    private void BtnTabHistory_Click(object sender, RoutedEventArgs e)
+    {
+        PanelQueueView.Visibility = Visibility.Collapsed;
+        PanelHistoryView.Visibility = Visibility.Visible;
+        BtnTabHistory.Background = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
+        BtnTabHistory.Foreground = new SolidColorBrush(Colors.White);
+        BtnTabQueue.Background = (Brush)Application.Current.Resources["BgSecondaryBrush"];
+        BtnTabQueue.Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+    }
+
+    private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RefreshFilteredGames();
+    }
+
+    private void RefreshFilteredGames()
+    {
+        string q = TxtSearch.Text?.Trim() ?? string.Empty;
+        IEnumerable<RomItem> query = _allGames;
+
+        if (!string.IsNullOrEmpty(q))
+        {
+            query = query.Where(g =>
+                g.FileName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                g.InternalTitle.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                g.GameCode.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                g.RegionCode.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                g.FormatType.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
-        catch { }
-    }
 
-    // --- Mode Selection & Output Folder ---
-    private void ChkCopy_Click(object sender, RoutedEventArgs e)
-    {
-        ChkCopy.IsChecked = true;
-        ChkInPlace.IsChecked = false;
-        SettingsManager.Current.IsInPlace = false;
-        SettingsManager.Save();
-        UpdateModeUI();
-    }
+        query = _currentSortField switch
+        {
+            "Code" => _sortAscending ? query.OrderBy(g => g.GameCode) : query.OrderByDescending(g => g.GameCode),
+            "Format" => _sortAscending ? query.OrderBy(g => g.FormatType) : query.OrderByDescending(g => g.FormatType),
+            "Size" => _sortAscending ? query.OrderBy(g => g.FileSizeBytes) : query.OrderByDescending(g => g.FileSizeBytes),
+            "Status" => _sortAscending ? query.OrderBy(g => g.StatusText) : query.OrderByDescending(g => g.StatusText),
+            _ => _sortAscending ? query.OrderBy(g => g.FileName) : query.OrderByDescending(g => g.FileName)
+        };
 
-    private void ChkInPlace_Click(object sender, RoutedEventArgs e)
-    {
-        ChkInPlace.IsChecked = true;
-        ChkCopy.IsChecked = false;
-        SettingsManager.Current.IsInPlace = true;
-        SettingsManager.Save();
-        UpdateModeUI();
-    }
+        _filteredGames.Clear();
+        foreach (var item in query)
+            _filteredGames.Add(item);
 
-    private void ChkBackup_Click(object sender, RoutedEventArgs e)
-    {
-        SettingsManager.Current.CreateBackup = ChkBackup.IsChecked == true;
-        SettingsManager.Save();
-    }
-
-    private void UpdateModeUI()
-    {
-        bool isCopy = ChkCopy.IsChecked == true;
-        BorderOutFolder.IsEnabled = isCopy;
-        BtnBrowseOutFolder.IsEnabled = isCopy;
-        BtnResetOutFolder.IsEnabled = isCopy;
-        BorderOutFolder.Opacity = isCopy ? 1.0 : 0.45;
-        LblOutFolder.Opacity = isCopy ? 1.0 : 0.45;
         UpdateStats();
     }
 
-    private void BorderOutFolder_MouseDown(object sender, MouseButtonEventArgs e)
+    private void ToggleSort(string field)
     {
-        if (ChkCopy.IsChecked == true)
-        {
-            BtnBrowseOutFolder_Click(sender, e);
-        }
-    }
-
-    private void BtnBrowseOutFolder_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new OpenFolderDialog
-        {
-            Title = LocalizationManager.Get("SelectOutputFolderTitle")
-        };
-        if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
-        {
-            _customOutputDir = dlg.FolderName;
-            TxtOutFolder.Text = _customOutputDir;
-            TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
-            SettingsManager.Current.OutputDirectory = _customOutputDir;
-            SettingsManager.Save();
-        }
-    }
-
-    private void BtnResetOutFolder_Click(object sender, RoutedEventArgs e)
-    {
-        _customOutputDir = null;
-        TxtOutFolder.Text = LocalizationManager.Get("OutputFolderDefault");
-        TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextSecondary");
-        SettingsManager.Current.OutputDirectory = string.Empty;
-        SettingsManager.Save();
-    }
-
-    private void BorderOutFolder_DragEnter(object sender, DragEventArgs e)
-    {
-        if (ChkCopy.IsChecked == true && e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
+        if (_currentSortField == field)
+            _sortAscending = !_sortAscending;
         else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void BorderOutFolder_DragOver(object sender, DragEventArgs e)
-    {
-        if (ChkCopy.IsChecked == true && e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void BorderOutFolder_DragLeave(object sender, DragEventArgs e) => e.Handled = true;
-
-    private void BorderOutFolder_Drop(object sender, DragEventArgs e)
-    {
-        e.Handled = true;
-        if (ChkCopy.IsChecked != true) return;
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
-            var dropped = (string[])e.Data.GetData(DataFormats.FileDrop);
-            if (dropped != null && dropped.Length > 0)
-            {
-                string path = dropped[0];
-                if (File.Exists(path))
-                {
-                    path = Path.GetDirectoryName(path) ?? path;
-                }
-                if (Directory.Exists(path))
-                {
-                    _customOutputDir = path;
-                    TxtOutFolder.Text = _customOutputDir;
-                    TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
-                    TxtStatusLog.Text = $"Папка сохранения: {_customOutputDir}";
-                    SettingsManager.Current.OutputDirectory = _customOutputDir;
-                    SettingsManager.Save();
-                }
-            }
+            _currentSortField = field;
+            _sortAscending = true;
         }
+        RefreshFilteredGames();
     }
 
-    // --- Drag & Drop for Main Window & DropZone ---
-    private void Window_DragEnter(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effects = DragDropEffects.Copy;
-        else e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
+    private void BtnSortName_Click(object sender, RoutedEventArgs e) => ToggleSort("Name");
+    private void BtnSortCode_Click(object sender, RoutedEventArgs e) => ToggleSort("Code");
+    private void BtnSortFormat_Click(object sender, RoutedEventArgs e) => ToggleSort("Format");
+    private void BtnSortSize_Click(object sender, RoutedEventArgs e) => ToggleSort("Size");
+    private void BtnSortStatus_Click(object sender, RoutedEventArgs e) => ToggleSort("Status");
 
-    private void Window_DragOver(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effects = DragDropEffects.Copy;
-        else e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
+    // ==================== ADDING FILES, FOLDERS & DRAG-AND-DROP ====================
 
-    private void Window_DragLeave(object sender, DragEventArgs e) => e.Handled = true;
-
-    private void Window_Drop(object sender, DragEventArgs e)
-    {
-        e.Handled = true;
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
-        {
-            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            if (files != null && files.Length > 0)
-            {
-                TabBtnQueue.IsChecked = true;
-                TabBtnQueue_Click(this, new RoutedEventArgs());
-                AddPaths(files);
-            }
-        }
-    }
-
-    private void Window_PreviewDragEnter(object sender, DragEventArgs e) => Window_DragEnter(sender, e);
-    private void Window_PreviewDragOver(object sender, DragEventArgs e) => Window_DragOver(sender, e);
-    private void Window_PreviewDrop(object sender, DragEventArgs e) => Window_Drop(sender, e);
-
-    private void DropZone_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_games.Count == 0)
-        {
-            BtnAddFiles_Click(sender, e);
-        }
-    }
-
-    // --- File & Folder Picker ---
-    private void BtnAddFiles_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new OpenFileDialog
-        {
-            Filter = "Все поддерживаемые форматы (*.nds;*.dsi;*.app;*.zip;*.7z;*.rar;*)|*.nds;*.dsi;*.app;*.zip;*.7z;*.rar|Образы Nintendo DS / DSi (*.nds;*.dsi;*.app)|*.nds;*.dsi;*.app|Архивы (*.zip;*.7z;*.rar;*.tar;*.gz)|*.zip;*.7z;*.rar;*.tar;*.gz|Все файлы (*.*)|*.*",
-            Multiselect = true,
-            Title = "Выберите образы игр или архивы для расшифровки"
-        };
-
-        if (dlg.ShowDialog() == true)
-        {
-            AddPaths(dlg.FileNames);
-        }
-    }
-
-    private void BtnAddFolder_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new OpenFolderDialog
-        {
-            Title = "Выберите папку с играми для сканирования"
-        };
-
-        if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
-        {
-            AddPaths(new[] { dlg.FolderName });
-        }
-    }
-
-    private static bool IsRomCandidate(string filePath)
+    private async void BtnAddFiles_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var fi = new FileInfo(filePath);
-            if (fi.Length < 0x200) return false;
+            var picker = new FileOpenPicker();
+            InitializeWithWindow.Initialize(picker, _hwnd);
+            picker.ViewMode = PickerViewMode.List;
+            picker.FileTypeFilter.Add(".nds");
+            picker.FileTypeFilter.Add(".dsi");
+            picker.FileTypeFilter.Add(".srl");
+            picker.FileTypeFilter.Add(".app");
+            picker.FileTypeFilter.Add(".cia");
+            picker.FileTypeFilter.Add(".tad");
+            picker.FileTypeFilter.Add(".tmd");
+            picker.FileTypeFilter.Add(".zip");
+            picker.FileTypeFilter.Add(".7z");
+            picker.FileTypeFilter.Add(".rar");
 
-            string ext = fi.Extension.ToLowerInvariant();
-            if (ext is ".nds" or ".dsi" or ".app") return true;
-
-            // Check if name is numeric (e.g. 00000000) or no extension or numeric extension (.0, .1)
-            if (string.IsNullOrEmpty(ext) || fi.Name.All(char.IsDigit) || (ext.Length > 1 && ext[1..].All(char.IsDigit)))
+            var files = await picker.PickMultipleFilesAsync();
+            if (files != null && files.Count > 0)
             {
-                byte[] header = ReadFileHeader(filePath);
-                return DsiDecryptorEngine.IsRomHeader(header);
+                await AddPathsAsync(files.Select(f => f.Path));
             }
         }
         catch { }
-        return false;
     }
 
-    private static byte[] ReadFileHeader(string filePath)
+    private async void BtnAddFolder_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            byte[] buf = new byte[0x400];
-            int read = fs.Read(buf, 0, 0x400);
-            return buf;
+            var picker = new FolderPicker();
+            InitializeWithWindow.Initialize(picker, _hwnd);
+            picker.FileTypeFilter.Add("*");
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder != null && !string.IsNullOrEmpty(folder.Path))
+            {
+                await AddPathsAsync(new[] { folder.Path });
+            }
         }
-        catch
+        catch { }
+    }
+
+    private void RootGrid_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
         {
-            return Array.Empty<byte>();
+            e.AcceptedOperation = DataPackageOperation.Copy;
         }
     }
 
-    private async void AddPaths(string[] paths)
+    private async void RootGrid_Drop(object sender, DragEventArgs e)
     {
-        if (_isScanning) return;
-        _isScanning = true;
-        _lastDropHandledTime = DateTime.UtcNow;
-
-        TxtStatusLog.Text = "Поиск и инспекция образов...";
-        int added = 0;
-
-        await Task.Run(() =>
+        try
         {
-            var itemsToAdd = new List<RomItem>();
-
-            void ProcessFile(string filePath)
+            if (e.DataView.Contains(StandardDataFormats.StorageItems))
             {
-                // 1. Archives (.zip, .7z, .rar, etc.)
-                if (ArchiveManager.IsArchiveFile(filePath))
+                var items = await e.DataView.GetStorageItemsAsync();
+                var paths = items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p)).ToList();
+                if (paths.Count > 0)
                 {
-                    try
-                    {
-                        var roms = ArchiveManager.FindRomsInArchive(filePath);
-                        foreach (var r in roms)
-                        {
-                            var item = new RomItem
-                            {
-                                FilePath = filePath,
-                                FileName = $"{Path.GetFileName(filePath)} [{r.EntryName}]",
-                                GameTitle = !string.IsNullOrWhiteSpace(r.RomInfo.Banner?.BestTitle)
-                                    ? r.RomInfo.Banner.BestTitle
-                                    : (!string.IsNullOrWhiteSpace(r.RomInfo.GameTitle) ? r.RomInfo.GameTitle : Path.GetFileNameWithoutExtension(filePath)),
-                                GameCode = r.RomInfo.GameCode,
-                                FileSize = r.UncompressedSize,
-                                IsEncrypted = r.RomInfo.IsEncrypted,
-                                IsDsiRom = r.RomInfo.IsDsiRom,
-                                NeedsCompatibilityPatch = r.RomInfo.NeedsCompatibilityPatch,
-                                IsFromArchive = true,
-                                ArchivePath = filePath,
-                                ArchiveEntryName = r.EntryName,
-                                SuggestedFileName = r.SuggestedFileName,
-                                BannerIcon = r.RomInfo.Banner?.Icon,
-                                BannerIconPng = r.RomInfo.Banner?.IconPng,
-                                Status = r.RomInfo.IsEncrypted
-                                    ? LocalizationManager.Get("StatusEncrypted")
-                                    : (r.RomInfo.NeedsCompatibilityPatch
-                                        ? LocalizationManager.Get("StatusNeedsPatch")
-                                        : (r.RomInfo.IsDsiRom ? LocalizationManager.Get("StatusDecrypted") : LocalizationManager.Get("StatusNotDsi")))
-                            };
-                            itemsToAdd.Add(item);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[Archive scan error {filePath}]: {ex.Message}");
-                    }
-                    return;
-                }
-
-                // 2. Special Formats: .cia, .tad
-                if (SpecialFormatManager.IsSpecialFormat(filePath))
-                {
-                    try
-                    {
-                        var special = filePath.EndsWith(".cia", StringComparison.OrdinalIgnoreCase)
-                            ? SpecialFormatManager.InspectCia(filePath)
-                            : SpecialFormatManager.InspectTad(filePath);
-
-                        if (special != null)
-                        {
-                            var item = new RomItem
-                            {
-                                FilePath = filePath,
-                                FileName = Path.GetFileName(filePath),
-                                SuggestedFileName = special.InternalName,
-                                GameTitle = !string.IsNullOrWhiteSpace(special.GameTitle) ? special.GameTitle : Path.GetFileNameWithoutExtension(filePath),
-                                GameCode = special.GameCode,
-                                FileSize = special.ContentSize,
-                                IsEncrypted = special.IsEncrypted,
-                                IsDsiRom = true,
-                                NeedsCompatibilityPatch = special.NeedsCompatibilityPatch,
-                                IsSpecialFormat = true,
-                                SpecialFormatType = special.FormatType,
-                                SpecialContentOffset = special.ContentOffset,
-                                SpecialContentSize = special.ContentSize,
-                                TitleId = special.TitleId,
-                                BannerIcon = special.Banner?.Icon,
-                                BannerIconPng = special.Banner?.IconPng,
-                                Status = special.IsEncrypted
-                                    ? LocalizationManager.Get("StatusEncrypted")
-                                    : LocalizationManager.Get("StatusDecrypted")
-                            };
-                            itemsToAdd.Add(item);
-                            return;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[Special format error {filePath}]: {ex.Message}");
-                    }
-                }
-
-                // 3. Direct ROM candidates (.nds, .dsi, .app, .srl, or raw 00000000)
-                if (IsRomCandidate(filePath))
-                {
-                    var info = DsiDecryptorEngine.InspectRom(filePath);
-                    if (info.IsDsiRom || DsiDecryptorEngine.IsRomHeader(ReadFileHeader(filePath)))
-                    {
-                        string fileName = Path.GetFileName(filePath);
-                        string suggestedName = fileName;
-                        string parentDir = Path.GetFileName(Path.GetDirectoryName(filePath) ?? "");
-
-                        if ((fileName.All(char.IsDigit) || string.IsNullOrEmpty(Path.GetExtension(filePath))) && !string.IsNullOrWhiteSpace(parentDir))
-                        {
-                            suggestedName = $"{parentDir}.nds";
-                            fileName = $"{parentDir} ({fileName})";
-                        }
-                        else if (!fileName.EndsWith(".nds", StringComparison.OrdinalIgnoreCase) &&
-                                 !fileName.EndsWith(".dsi", StringComparison.OrdinalIgnoreCase) &&
-                                 !fileName.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
-                        {
-                            suggestedName = $"{fileName}.nds";
-                        }
-
-                        var item = new RomItem
-                        {
-                            FilePath = filePath,
-                            FileName = fileName,
-                            SuggestedFileName = suggestedName,
-                            GameTitle = !string.IsNullOrWhiteSpace(info.Banner?.BestTitle)
-                                ? info.Banner.BestTitle
-                                : (!string.IsNullOrWhiteSpace(info.GameTitle) ? info.GameTitle : Path.GetFileNameWithoutExtension(filePath)),
-                            GameCode = info.GameCode,
-                            FileSize = info.FileSize,
-                            IsEncrypted = info.IsEncrypted,
-                            IsDsiRom = info.IsDsiRom,
-                            NeedsCompatibilityPatch = info.NeedsCompatibilityPatch,
-                            BannerIcon = info.Banner?.Icon,
-                            BannerIconPng = info.Banner?.IconPng,
-                            Status = info.IsEncrypted
-                                ? LocalizationManager.Get("StatusEncrypted")
-                                : (info.NeedsCompatibilityPatch
-                                    ? LocalizationManager.Get("StatusNeedsPatch")
-                                    : (info.IsDsiRom ? LocalizationManager.Get("StatusDecrypted") : LocalizationManager.Get("StatusNotDsi")))
-                        };
-                        itemsToAdd.Add(item);
-                    }
+                    await AddPathsAsync(paths);
                 }
             }
+        }
+        catch { }
+    }
 
-            foreach (var p in paths)
+    public async Task AddPathsAsync(IEnumerable<string> inputPaths)
+    {
+        string[] validExts = { ".nds", ".dsi", ".srl", ".app", ".cia", ".tad", ".tmd", ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz" };
+        var discoveredFiles = await Task.Run(() =>
+        {
+            var list = new List<string>();
+            foreach (var p in inputPaths)
             {
+                if (string.IsNullOrWhiteSpace(p)) continue;
                 if (File.Exists(p))
                 {
-                    ProcessFile(p);
+                    list.Add(p);
                 }
                 else if (Directory.Exists(p))
                 {
-                    _lastFolderPath = p;
-
-                    // Check if the directory itself is a NUS Downloader dump folder
-                    var nus = SpecialFormatManager.InspectNusFolder(p);
-                    if (nus != null)
-                    {
-                        var item = new RomItem
-                        {
-                            FilePath = nus.ContainerPath,
-                            FileName = $"{Path.GetFileName(p)} (NUS)",
-                            SuggestedFileName = nus.InternalName,
-                            GameTitle = !string.IsNullOrWhiteSpace(nus.GameTitle) ? nus.GameTitle : Path.GetFileName(p),
-                            GameCode = nus.GameCode,
-                            FileSize = nus.ContentSize,
-                            IsEncrypted = nus.IsEncrypted,
-                            IsDsiRom = true,
-                            IsSpecialFormat = true,
-                            SpecialFormatType = "NUS",
-                            SpecialContentOffset = 0,
-                            SpecialContentSize = nus.ContentSize,
-                            TitleId = nus.TitleId,
-                            BannerIcon = nus.Banner?.Icon,
-                            BannerIconPng = nus.Banner?.IconPng,
-                            Status = nus.IsEncrypted
-                                ? LocalizationManager.Get("StatusEncrypted")
-                                : LocalizationManager.Get("StatusDecrypted")
-                        };
-                        itemsToAdd.Add(item);
-                        continue;
-                    }
-
                     try
                     {
                         foreach (var f in Directory.EnumerateFiles(p, "*.*", SearchOption.AllDirectories))
                         {
-                            ProcessFile(f);
+                            string ext = Path.GetExtension(f).ToLowerInvariant();
+                            if (validExts.Contains(ext))
+                                list.Add(f);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[Dir Enum Error]: {ex.Message}");
-                    }
+                    catch { }
                 }
             }
+            return list;
+        });
 
-            Dispatcher.Invoke(() =>
+        var existingSet = new HashSet<string>(_allGames.Select(g => g.FullPath), StringComparer.OrdinalIgnoreCase);
+        var toInspect = discoveredFiles.Where(f => !existingSet.Contains(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (toInspect.Count == 0) return;
+
+        var inspectedBag = new ConcurrentBag<RomItem>();
+        await Task.Run(() =>
+        {
+            Parallel.ForEach(toInspect, path =>
             {
-                foreach (var it in itemsToAdd)
-                {
-                    bool exists = _games.Any(g =>
-                        (it.IsFromArchive && g.IsFromArchive && g.ArchivePath.Equals(it.ArchivePath, StringComparison.OrdinalIgnoreCase) && g.ArchiveEntryName.Equals(it.ArchiveEntryName, StringComparison.OrdinalIgnoreCase)) ||
-                        (!it.IsFromArchive && !g.IsFromArchive && g.FilePath.Equals(it.FilePath, StringComparison.OrdinalIgnoreCase)));
-
-                    if (!exists)
-                    {
-                        _games.Add(it);
-                        added++;
-                    }
-                }
+                var rom = DsiDecryptorEngine.InspectFile(path);
+                inspectedBag.Add(rom);
             });
         });
 
-        _isScanning = false;
-        UpdateStats();
-        TxtStatusLog.Text = added > 0 ? $"Добавлено {added} игр. Всего в списке: {_games.Count}." : "Новых поддерживаемых игр не найдено.";
+        foreach (var item in inspectedBag.OrderBy(x => x.FileName))
+        {
+            item.IconSource = NdsBannerParser.GetOrCreateBitmapImage(item.BannerPngBytes);
+            _allGames.Add(item);
+        }
+
+        RefreshFilteredGames();
+        TxtStatusFooter.Text = LocalizationManager.Get("TotalGames") + ": " + _allGames.Count + " (+" + inspectedBag.Count + ")";
     }
 
-    // --- Decryption & Processing ---
-    private async void BtnDecrypt_Click(object sender, RoutedEventArgs e)
+    private void BtnClearQueue_Click(object sender, RoutedEventArgs e)
     {
-        if (_games.Count == 0) return;
+        if (_isProcessingBatch) return;
+        _allGames.Clear();
+        RefreshFilteredGames();
+        PbTotal.Value = 0;
+        TxtStatusFooter.Text = LocalizationManager.Get("DragDropHint");
+    }
 
-        bool inPlace = ChkInPlace.IsChecked == true;
-        bool createBackup = inPlace && ChkBackup.IsChecked == true;
-        var gamesToProcess = new List<RomItem>();
-        DuplicateAction? appliedToAll = null;
+    // ==================== OUTPUT DIRECTORY PICKER ====================
 
-        foreach (var item in _games)
+    private async void BtnBrowseOut_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            var previous = HistoryManager.Find(item.FilePath);
-            if (previous != null)
+            var picker = new FolderPicker();
+            InitializeWithWindow.Initialize(picker, _hwnd);
+            picker.FileTypeFilter.Add("*");
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder != null && !string.IsNullOrEmpty(folder.Path))
             {
-                DuplicateAction decision;
-                if (appliedToAll.HasValue)
-                {
-                    decision = appliedToAll.Value;
-                }
-                else
-                {
-                    var dlg = new DuplicatePromptDialog(this, item.GameTitle, item.FileName, previous.ProcessedAtFormatted);
-                    dlg.ShowDialog();
-                    decision = dlg.Decision;
-                    if (dlg.ApplyToAll)
-                    {
-                        appliedToAll = decision;
-                    }
-                }
-
-                if (decision == DuplicateAction.Skip)
-                {
-                    item.Status = $"{LocalizationManager.Get("BtnSkip")} ({previous.ProcessedAtFormatted})";
-                    continue;
-                }
+                TxtOutputDir.Text = folder.Path;
+                SaveCurrentSettings();
             }
-
-            gamesToProcess.Add(item);
         }
+        catch { }
+    }
 
-        if (gamesToProcess.Count == 0)
+    private void BtnOpenOut_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            UpdateStats();
-            TxtStatusLog.Text = "Все повторно добавленные игры пропущены.";
+            string dir = TxtOutputDir.Text;
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    // ==================== MULTI-CORE PARALLEL DECRYPTION & SINGLE PROCESSING ====================
+
+    private async void BtnProcessSingle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isProcessingBatch) return;
+        if (sender is Button btn && btn.Tag is RomItem item)
+        {
+            await ProcessQueueItemsAsync(new List<RomItem> { item });
+        }
+    }
+
+    private async void BtnStartBatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isProcessingBatch) return;
+        if (_allGames.Count == 0)
+        {
+            ShowMessageModal("STORM DS DECRYPTOR", LocalizationManager.Get("DragDropHint"));
             return;
         }
+        await ProcessQueueItemsAsync(_allGames.ToList());
+    }
 
-        if (!inPlace && (string.IsNullOrWhiteSpace(_customOutputDir) || !Directory.Exists(_customOutputDir)))
+    private async Task ProcessQueueItemsAsync(List<RomItem> items)
+    {
+        _isProcessingBatch = true;
+        BtnStartBatch.IsEnabled = false;
+        BtnAddFiles.IsEnabled = false;
+        BtnAddFolder.IsEnabled = false;
+        BtnClearQueue.IsEnabled = false;
+
+        bool isSeparateFolder = CmbMode.SelectedIndex == 0;
+        string outDir = TxtOutputDir.Text;
+        bool verifyCrc = ChkVerifyCrc.IsChecked == true;
+        bool compat = ChkCompatibility.IsChecked == true;
+        bool createBackup = ChkBackup.IsChecked == true;
+
+        if (isSeparateFolder && !Directory.Exists(outDir))
         {
-            var dlg = new OpenFolderDialog
+            try { Directory.CreateDirectory(outDir); } catch { }
+        }
+
+        // Pre-resolve target paths & duplicate prompts on UI thread
+        var workPlan = new List<(RomItem Item, string TargetPath)>();
+        DuplicateChoice? rememberedChoice = null;
+
+        foreach (var item in items)
+        {
+            string targetPath;
+            if (isSeparateFolder)
             {
-                Title = LocalizationManager.Get("SelectOutputFolderTitle")
-            };
-            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
-            {
-                _customOutputDir = dlg.FolderName;
-                TxtOutFolder.Text = _customOutputDir;
-                TxtOutFolder.Foreground = (System.Windows.Media.Brush)FindResource("ThemeTextPrimary");
-                SettingsManager.Current.OutputDirectory = _customOutputDir;
-                SettingsManager.Save();
+                string baseName = Path.GetFileNameWithoutExtension(item.FileName);
+                if (!baseName.EndsWith("_Decrypted", StringComparison.OrdinalIgnoreCase))
+                    baseName += "_Decrypted";
+                targetPath = Path.Combine(outDir, baseName + ".nds");
+
+                if (File.Exists(targetPath))
+                {
+                    DuplicateChoice choice;
+                    if (rememberedChoice.HasValue)
+                    {
+                        choice = rememberedChoice.Value;
+                    }
+                    else
+                    {
+                        var promptRes = await PromptDuplicateAsync(Path.GetFileName(targetPath));
+                        choice = promptRes.Choice;
+                        if (promptRes.ApplyToAll)
+                            rememberedChoice = choice;
+                    }
+
+                    if (choice == DuplicateChoice.Cancel)
+                    {
+                        _isProcessingBatch = false;
+                        RestoreButtonsAfterBatch();
+                        return;
+                    }
+                    if (choice == DuplicateChoice.Skip)
+                    {
+                        item.StatusText = "Пропущен (дубликат)";
+                        continue;
+                    }
+                }
             }
             else
             {
-                TxtStatusLog.Text = "Операция отменена: выберите папку для сохранения копий.";
-                return;
+                targetPath = item.FullPath;
             }
+
+            workPlan.Add((item, targetPath));
         }
 
-        BtnDecrypt.IsEnabled = false;
-        BtnAddFiles.IsEnabled = false;
-        BtnAddFolder.IsEnabled = false;
-        BtnClear.IsEnabled = false;
+        int total = workPlan.Count;
+        int completedCount = 0;
+        int successCount = 0;
+        var sw = Stopwatch.StartNew();
 
-        ProgBar.Value = 0;
-        ProgBar.Maximum = gamesToProcess.Count;
-        TbProgress.ProgressState = System.Windows.Shell.TaskbarItemProgressState.Normal;
-        TbProgress.ProgressValue = 0;
-
-        int processed = 0;
-        var totalSw = Stopwatch.StartNew();
+        SetTaskbarProgress(0, (ulong)Math.Max(1, total), isIndeterminate: false);
 
         var parallelOptions = new ParallelOptions
         {
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
         };
 
-        try
+        await Parallel.ForEachAsync(workPlan, parallelOptions, async (entry, ct) =>
         {
-            await Parallel.ForEachAsync(gamesToProcess, parallelOptions, async (item, cancellationToken) =>
+            var (rom, target) = entry;
+            DispatcherQueue.TryEnqueue(() =>
             {
-                string targetDir = (!string.IsNullOrWhiteSpace(_customOutputDir) && Directory.Exists(_customOutputDir))
-                    ? _customOutputDir
-                    : (Path.GetDirectoryName(item.FilePath) ?? "");
+                rom.IsProcessing = true;
+                rom.ProgressValue = 10;
+                rom.StatusText = LocalizationManager.Get("StatusProcessing");
+            });
 
-                string outFileName = !string.IsNullOrEmpty(item.SuggestedFileName)
-                    ? item.SuggestedFileName
-                    : Path.GetFileName(item.FilePath);
+            var progress = new Progress<double>(p =>
+            {
+                DispatcherQueue.TryEnqueue(() => rom.ProgressValue = p);
+            });
 
-                if (!outFileName.EndsWith(".nds", StringComparison.OrdinalIgnoreCase) &&
-                    !outFileName.EndsWith(".dsi", StringComparison.OrdinalIgnoreCase) &&
-                    !outFileName.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+            var result = await Task.Run(() => DsiDecryptorEngine.ProcessRom(
+                rom,
+                target,
+                verifyCrc,
+                compat,
+                createBackup && !isSeparateFolder,
+                progress), ct);
+
+            int doneNow = Interlocked.Increment(ref completedCount);
+            if (result.Success)
+                Interlocked.Increment(ref successCount);
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                rom.IsProcessing = false;
+                rom.IsCompleted = result.Success;
+                rom.HasError = !result.Success;
+                if (result.Success) rom.IsEncrypted = false;
+                rom.ProgressValue = result.Success ? 100 : 0;
+                rom.StatusText = result.Message;
+
+                double pct = total > 0 ? (doneNow * 100.0) / total : 100;
+                PbTotal.Value = pct;
+                TxtStatusFooter.Text = LocalizationManager.Get("StatusProcessing") + " [" + doneNow + "/" + total + "] " + rom.FileName;
+                SetTaskbarProgress((ulong)doneNow, (ulong)Math.Max(1, total), false);
+
+                HistoryManager.AddEntry(new HistoryItem
                 {
-                    outFileName += ".nds";
-                }
-
-                string outPath = (inPlace && !item.IsFromArchive && item.FilePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
-                    ? item.FilePath
-                    : Path.Combine(targetDir, outFileName);
-
-                bool success = false;
-                long elapsedMs = 0;
-                bool wasEncrypted = item.IsEncrypted;
-                bool neededPatch = item.NeedsCompatibilityPatch;
-
-                item.IsProcessing = true;
-                string statusProg = item.IsFromArchive
-                    ? LocalizationManager.Get("StatusProcessing")
-                    : (item.IsEncrypted
-                        ? LocalizationManager.Get("StatusProcessing")
-                        : (item.NeedsCompatibilityPatch ? LocalizationManager.Get("StatusPatching") : LocalizationManager.Get("StatusCopying")));
-                item.Status = statusProg;
-
-                var sw = Stopwatch.StartNew();
-                try
-                {
-                    if (item.IsFromArchive)
-                    {
-                        success = ArchiveManager.ExtractAndDecrypt(item.ArchivePath, item.ArchiveEntryName, outPath);
-                    }
-                    else if (item.IsSpecialFormat)
-                    {
-                        success = SpecialFormatManager.ExtractAndDecrypt(item.FilePath, item.SpecialContentOffset, item.SpecialContentSize, outPath, createBackup);
-                    }
-                    else if (item.IsEncrypted || item.NeedsCompatibilityPatch)
-                    {
-                        success = DsiDecryptorEngine.DecryptFile(item.FilePath, outPath, createBackup);
-                    }
-                    else
-                    {
-                        if (!string.Equals(Path.GetFullPath(item.FilePath), Path.GetFullPath(outPath), StringComparison.OrdinalIgnoreCase))
-                        {
-                            var dir = Path.GetDirectoryName(outPath);
-                            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                            File.Copy(item.FilePath, outPath, true);
-                        }
-                        success = true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[Process Error {item.FilePath}]: {ex.Message}");
-                    success = false;
-                }
-                sw.Stop();
-                elapsedMs = sw.ElapsedMilliseconds;
-
-                item.IsProcessing = false;
-
-                if (success)
-                {
-                    item.IsEncrypted = false;
-                    item.NeedsCompatibilityPatch = false;
-                    item.IsSuccess = true;
-                    string statusText = wasEncrypted
-                        ? LocalizationManager.Get("StatusSuccess")
-                        : (neededPatch ? LocalizationManager.Get("StatusPatched") : LocalizationManager.Get("StatusCopied"));
-                    item.Status = $"{statusText} ({elapsedMs} мс)";
-
-                    HistoryManager.Add(new HistoryItem
-                    {
-                        FilePath = item.FilePath,
-                        FileName = outFileName,
-                        GameTitle = item.GameTitle,
-                        GameCode = item.GameCode,
-                        FileSize = item.FileSize,
-                        ProcessedAt = DateTime.Now,
-                        Status = statusText,
-                        ElapsedMs = elapsedMs,
-                        OutPath = outPath,
-                        BannerIconPng = item.BannerIconPng
-                    });
-                }
-                else
-                {
-                    item.Status = wasEncrypted
-                        ? LocalizationManager.Get("StatusFailed")
-                        : (neededPatch ? LocalizationManager.Get("StatusFailed") : LocalizationManager.Get("StatusCopyFailed"));
-                }
-
-                int currentCount = Interlocked.Increment(ref processed);
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    ProgBar.Value = currentCount;
-                    TbProgress.ProgressValue = (double)currentCount / gamesToProcess.Count;
-                    TxtStatusLog.Text = $"Обработано: {currentCount}/{gamesToProcess.Count} ({outFileName})...";
+                    Timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                    FileName = rom.FileName,
+                    GameCode = rom.GameCode,
+                    FormatType = rom.FormatType,
+                    FileSizeFormatted = rom.FileSizeFormatted,
+                    ResultStatus = result.Message,
+                    OutputPath = result.OutputPath,
+                    IsSuccess = result.Success,
+                    BannerPngBytes = rom.BannerPngBytes,
+                    IconSource = rom.IconSource
                 });
             });
-        }
-        finally
-        {
-            totalSw.Stop();
-            TbProgress.ProgressState = System.Windows.Shell.TaskbarItemProgressState.None;
-            UpdateStats();
-            UpdateHistoryStats();
+        });
 
-            BtnDecrypt.IsEnabled = true;
-            BtnAddFiles.IsEnabled = true;
-            BtnAddFolder.IsEnabled = true;
-            BtnClear.IsEnabled = true;
-        }
-
-        TxtStatusLog.Text = $"Обработано {processed} игр за {totalSw.ElapsedMilliseconds} мс!";
-        StormMessageBox.Show(
-            this,
-            LocalizationManager.Get("AllDone"),
-            LocalizationManager.Get("AppTitle"),
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
-
-    // --- Queue Management ---
-    private void GridGames_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Delete)
-        {
-            DeleteSelectedGames();
-            e.Handled = true;
-        }
-    }
-
-    private void MenuDeleteSelected_Click(object sender, RoutedEventArgs e) => DeleteSelectedGames();
-    private void MenuClearAll_Click(object sender, RoutedEventArgs e) => ClearAllGames();
-    private void BtnClear_Click(object sender, RoutedEventArgs e) => ClearAllGames();
-
-    private void DeleteSelectedGames()
-    {
-        var selected = GridGames.SelectedItems.Cast<RomItem>().ToList();
-        if (selected.Count == 0 && GridGames.SelectedItem is RomItem item)
-        {
-            selected.Add(item);
-        }
-        if (selected.Count == 0) return;
-
-        foreach (var game in selected)
-        {
-            _games.Remove(game);
-        }
+        sw.Stop();
+        ClearTaskbarProgress();
+        PbTotal.Value = 100;
         UpdateStats();
-        TxtStatusLog.Text = $"Удалено игр: {selected.Count}. В списке: {_games.Count}.";
-    }
 
-    private void ClearAllGames()
-    {
-        _games.Clear();
-        ProgBar.Value = 0;
-        UpdateStats();
-        TxtStatusLog.Text = "Список очищен";
-    }
+        TxtStatusFooter.Text = LocalizationManager.Get("AllDone") + " [" + successCount + "/" + total + "]" + $" ({sw.Elapsed.TotalSeconds:F2} s)";
+        _isProcessingBatch = false;
+        RestoreButtonsAfterBatch();
 
-    private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
-    {
-        string? target = null;
-        if (ChkCopy.IsChecked == true && !string.IsNullOrWhiteSpace(_customOutputDir) && Directory.Exists(_customOutputDir))
+        if (total > 1)
         {
-            target = _customOutputDir;
+            ShowMessageModal(
+                "STORM DS DECRYPTOR",
+                LocalizationManager.Get("AllDone") + " (" + successCount + "/" + total + ")");
         }
-        else
+    }
+
+    private void RestoreButtonsAfterBatch()
+    {
+        BtnStartBatch.IsEnabled = true;
+        BtnAddFiles.IsEnabled = true;
+        BtnAddFolder.IsEnabled = true;
+        BtnClearQueue.IsEnabled = true;
+    }
+
+    private void SetTaskbarProgress(ulong current, ulong total, bool isIndeterminate)
+    {
+        try
         {
-            target = _lastFolderPath;
-            if (string.IsNullOrEmpty(target) || !Directory.Exists(target))
+            if (_taskbarList == null) return;
+            _taskbarList.SetProgressState(_hwnd, isIndeterminate ? 1 : 2 /* TBPF_NORMAL */);
+            _taskbarList.SetProgressValue(_hwnd, current, total);
+        }
+        catch { }
+    }
+
+    private void ClearTaskbarProgress()
+    {
+        try
+        {
+            _taskbarList?.SetProgressState(_hwnd, 0 /* TBPF_NOPROGRESS */);
+        }
+        catch { }
+    }
+
+    // ==================== ROW ACTION BUTTONS & ROM INSPECTOR ====================
+
+    private async void BtnInspectRom_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not RomItem item) return;
+
+        ImgInspectorBanner.Source = item.IconSource ?? ImgHeaderLogo.Source;
+        TxtInspectorTitle.Text = item.FileName;
+        TxtInspectorSubtitle.Text = $"{item.FormatType} • {item.GameCode} ({item.RegionCode}) • {item.FileSizeFormatted}";
+        TxtInspectorDetails.Text = "Вычисление криптографических хэшей (CRC16 / CRC32 / MD5 / SHA-1 / SHA-256) и чтение заголовка TWL/NTR...";
+        OverlayInspector.Visibility = Visibility.Visible;
+
+        var info = await Task.Run(() => DsiDecryptorEngine.InspectRomDetailed(item));
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"=== STORM DS DECRYPTOR {UpdateManager.CurrentVersion} — ROM & BANNER INSPECTOR ===");
+        sb.AppendLine($"Файл:               {info.FileName}");
+        sb.AppendLine($"Полный путь:        {info.FullPath}");
+        sb.AppendLine($"Размер:             {info.FileSizeBytes:N0} байт ({item.FileSizeFormatted})");
+        sb.AppendLine($"Формат и защита:    {info.FormatType}");
+        sb.AppendLine($"Внутр. заголовок:   {info.InternalTitle}");
+        sb.AppendLine($"Код игры / Регион:  {info.GameCode} / {info.Region}");
+        sb.AppendLine($"Код издателя:       {info.MakerCode}");
+        sb.AppendLine($"Тип картриджа:      {info.UnitCodeDescription}");
+        sb.AppendLine($"TWL Title ID:       {info.TwlTitleId}");
+        sb.AppendLine();
+        sb.AppendLine("--- КАРТА СЕКЦИЙ ОБРАЗА (ARM9 / ARM7 / FNT / FAT / MODCRYPT) ---");
+        sb.AppendLine($"ARM9 Offset / Size: {info.Arm9Offset} ({info.Arm9Size})");
+        sb.AppendLine($"ARM7 Offset / Size: {info.Arm7Offset} ({info.Arm7Size})");
+        sb.AppendLine($"FNT Offset / Size:  {info.FntOffset} ({info.FntSize})");
+        sb.AppendLine($"FAT Offset / Size:  {info.FatOffset} ({info.FatSize})");
+        sb.AppendLine($"Banner Offset:      {info.BannerOffset} (Animated DSi Icon: {(info.HasAnimatedBanner ? "YES" : "NO")})");
+        sb.AppendLine($"Modcrypt Area 1:    {info.Modcrypt1Offset} ({info.Modcrypt1Size})");
+        sb.AppendLine($"Modcrypt Area 2:    {info.Modcrypt2Offset} ({info.Modcrypt2Size})");
+        sb.AppendLine();
+        sb.AppendLine("--- КОНТРОЛЬНЫЕ СУММЫ И ХЭШИ ---");
+        sb.AppendLine($"Header CRC16:       {info.HeaderCrc16}");
+        sb.AppendLine($"Secure Area CRC16:  {info.SecureAreaCrc16}");
+        sb.AppendLine($"CRC32:              {info.Crc32}");
+        sb.AppendLine($"MD5:                {info.Md5}");
+        sb.AppendLine($"SHA-1:              {info.Sha1}");
+        sb.AppendLine($"SHA-256:            {info.Sha256}");
+
+        if (info.BannerTitles.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("--- МУЛЬТИЯЗЫЧНЫЕ НАЗВАНИЯ ИЗ БАННЕРА КАРТРИДЖА ---");
+            foreach (var kv in info.BannerTitles)
             {
-                if (_games.Count > 0)
-                    target = Path.GetDirectoryName(_games[0].FilePath);
+                sb.AppendLine($"[{kv.Key}]: {kv.Value}");
             }
         }
 
-        if (!string.IsNullOrEmpty(target) && Directory.Exists(target))
+        TxtInspectorDetails.Text = sb.ToString();
+    }
+
+    private void BtnCopyInspector_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", target) { UseShellExecute = true });
+            var pkg = new DataPackage();
+            pkg.SetText(TxtInspectorDetails.Text);
+            Clipboard.SetContent(pkg);
+            TxtStatusFooter.Text = "Отчёт инспектора ROM скопирован в буфер обмена.";
         }
-        else
+        catch { }
+    }
+
+    private void BtnCloseInspector_Click(object sender, RoutedEventArgs e)
+    {
+        OverlayInspector.Visibility = Visibility.Collapsed;
+    }
+
+    private void BtnOpenLocation_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is RomItem item && File.Exists(item.FullPath))
         {
-            StormMessageBox.Show(this, "Папка с играми пока не выбрана", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+            try
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.FullPath}\"") { UseShellExecute = true });
+            }
+            catch { }
         }
     }
 
-    // --- History Management ---
-    private void GridHistory_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void BtnRemoveSingle_Click(object sender, RoutedEventArgs e)
     {
-        if (e.Key == Key.Delete)
+        if (_isProcessingBatch) return;
+        if (sender is Button btn && btn.Tag is RomItem item)
         {
-            DeleteSelectedHistory();
-            e.Handled = true;
+            _allGames.Remove(item);
+            RefreshFilteredGames();
         }
     }
 
-    private void BtnDeleteHistory_Click(object sender, RoutedEventArgs e) => DeleteSelectedHistory();
-
-    private void DeleteSelectedHistory()
+    private void BtnHistoryOpenLocation_Click(object sender, RoutedEventArgs e)
     {
-        var selected = GridHistory.SelectedItems.Cast<HistoryItem>().ToList();
-        if (selected.Count == 0 && GridHistory.SelectedItem is HistoryItem item)
+        if (sender is Button btn && btn.Tag is HistoryItem item && !string.IsNullOrEmpty(item.OutputPath))
         {
-            selected.Add(item);
+            try
+            {
+                if (File.Exists(item.OutputPath))
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.OutputPath}\"") { UseShellExecute = true });
+                else if (Directory.Exists(Path.GetDirectoryName(item.OutputPath)))
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Path.GetDirectoryName(item.OutputPath)}\"") { UseShellExecute = true });
+            }
+            catch { }
         }
-        if (selected.Count == 0) return;
+    }
 
-        foreach (var h in selected)
+    private void BtnHistoryRemoveSingle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is HistoryItem item)
         {
-            HistoryManager.Remove(h);
+            HistoryManager.RemoveEntry(item);
+            UpdateTabHeaders();
         }
-        UpdateHistoryStats();
-        StateChanged += MainWindow_StateChanged;
-        TxtStatusLog.Text = $"Удалено из истории: {selected.Count}. Всего: {HistoryManager.Items.Count}.";
     }
 
     private void BtnClearHistory_Click(object sender, RoutedEventArgs e)
     {
-        if (HistoryManager.Items.Count == 0) return;
-
-        bool? res = StormMessageBox.Show(
-            this,
-            LocalizationManager.Get("ConfirmClearHistory"),
-            LocalizationManager.Get("ClearHistory"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (res == true)
-        {
-            HistoryManager.Clear();
-            UpdateHistoryStats();
-        StateChanged += MainWindow_StateChanged;
-            TxtStatusLog.Text = "История операций очищена";
-        }
+        HistoryManager.ClearAll();
+        UpdateTabHeaders();
     }
 
-    private void BtnOpenHistoryFolder_Click(object sender, RoutedEventArgs e)
-    {
-        string? target = null;
-        if (GridHistory.SelectedItem is HistoryItem item && !string.IsNullOrEmpty(item.FilePath))
-        {
-            target = Path.GetDirectoryName(item.FilePath);
-        }
-        if (string.IsNullOrEmpty(target) || !Directory.Exists(target))
-        {
-            target = _lastFolderPath;
-        }
+    // ==================== EXPORT CSV / JSON REPORT ====================
 
-        if (!string.IsNullOrEmpty(target) && Directory.Exists(target))
-        {
-            Process.Start(new ProcessStartInfo("explorer.exe", target) { UseShellExecute = true });
-        }
-        else
-        {
-            StormMessageBox.Show(this, "Папка недоступна", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
-
-    // --- Settings, Themes & Accents ---
-    private void CmbTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void BtnExportReport_Click(object sender, RoutedEventArgs e)
     {
-        if (CmbTheme.SelectedIndex >= 0 && CmbTheme.SelectedIndex < ThemeManager.Themes.Count)
+        try
         {
-            ThemeManager.ApplyTheme(ThemeManager.Themes[CmbTheme.SelectedIndex].Name);
-            SettingsManager.Current.ThemeName = ThemeManager.Themes[CmbTheme.SelectedIndex].Name;
-            SettingsManager.Save();
-        }
-    }
+            string outDir = TxtOutputDir.Text;
+            if (!Directory.Exists(outDir))
+                Directory.CreateDirectory(outDir);
 
-    private void CmbAccent_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbAccent.SelectedIndex >= 0 && CmbAccent.SelectedIndex < ThemeManager.Accents.Length)
-        {
-            ThemeManager.ApplyAccent(CmbAccent.SelectedIndex);
-            SettingsManager.Current.AccentIndex = CmbAccent.SelectedIndex;
-            SettingsManager.Save();
-        }
-    }
+            string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string csvPath = Path.Combine(outDir, $"STORM_DS_DECRYPTOR_Report_{stamp}.csv");
+            string jsonPath = Path.Combine(outDir, $"STORM_DS_DECRYPTOR_Report_{stamp}.json");
 
-    private void CmbFont_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbFont.SelectedIndex >= 0 && CmbFont.SelectedIndex < ThemeManager.Fonts.Length)
-        {
-            ThemeManager.ApplyFont(CmbFont.SelectedIndex);
-            SettingsManager.Current.FontIndex = CmbFont.SelectedIndex;
-            SettingsManager.Save();
-        }
-    }
-
-    private void CmbLang_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbLang.SelectedIndex >= 0 && CmbLang.SelectedIndex < LocalizationManager.Languages.Length)
-        {
-            LocalizationManager.CurrentLanguage = LocalizationManager.Languages[CmbLang.SelectedIndex].Code;
-            SettingsManager.Current.LanguageCode = LocalizationManager.CurrentLanguage;
-            SettingsManager.Save();
-            UpdateLocalization();
-            foreach (var item in _games)
+            var sb = new StringBuilder();
+            sb.AppendLine("FileName;InternalTitle;GameCode;Region;Format;Size;Status;FullPath");
+            foreach (var g in _allGames)
             {
-                var info = DsiDecryptorEngine.InspectRom(item.FilePath);
-                item.Status = info.IsEncrypted
-                    ? LocalizationManager.Get("StatusEncrypted")
-                    : (info.NeedsCompatibilityPatch
-                        ? LocalizationManager.Get("StatusNeedsPatch")
-                        : (info.IsDsiRom ? LocalizationManager.Get("StatusDecrypted") : LocalizationManager.Get("StatusNotDsi")));
+                sb.AppendLine($"\"{g.FileName}\";\"{g.InternalTitle}\";\"{g.GameCode}\";\"{g.RegionCode}\";\"{g.FormatType}\";\"{g.FileSizeFormatted}\";\"{g.StatusText}\";\"{g.FullPath}\"");
+            }
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+
+            var jsonItems = _allGames.Select(g => new
+            {
+                g.FileName,
+                g.InternalTitle,
+                g.GameCode,
+                g.RegionCode,
+                g.FormatType,
+                g.FileSizeBytes,
+                g.FileSizeFormatted,
+                g.IsEncrypted,
+                g.IsCompleted,
+                g.StatusText,
+                g.FullPath
+            }).ToList();
+
+            File.WriteAllText(jsonPath, JsonSerializer.Serialize(jsonItems, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+            ShowMessageModal("Экспорт отчёта завершён", $"Отчёты успешно сохранены:\n• {csvPath}\n• {jsonPath}");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка экспорта", ex.Message);
+        }
+    }
+
+    // ==================== MODAL OVERLAYS & ESC KEY HANDLER (Rule 9 & 16) ====================
+
+    private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (OverlayInspector.Visibility == Visibility.Visible)
+            {
+                OverlayInspector.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+            }
+            else if (OverlayMessage.Visibility == Visibility.Visible)
+            {
+                OverlayMessage.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+            }
+            else if (OverlayUpdate.Visibility == Visibility.Visible)
+            {
+                OverlayUpdate.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+            }
+            else if (OverlayDuplicate.Visibility == Visibility.Visible)
+            {
+                ResolveDuplicatePrompt(DuplicateChoice.Cancel);
+                e.Handled = true;
             }
         }
     }
-}
 
-public class StormDarkMenuRenderer : System.Windows.Forms.ToolStripProfessionalRenderer
-{
-    public StormDarkMenuRenderer(System.Drawing.Color accentColor) : base(new StormDarkColorTable(accentColor)) { }
-    protected override void OnRenderItemText(System.Windows.Forms.ToolStripItemTextRenderEventArgs e)
+    public void ShowMessageModal(string title, string message)
     {
-        e.TextColor = e.Item.Selected ? System.Drawing.Color.White : System.Drawing.Color.FromArgb(240, 240, 245);
-        base.OnRenderItemText(e);
+        TxtModalTitle.Text = title;
+        TxtModalMessage.Text = message;
+        BtnModalOk.Content = "OK";
+        OverlayMessage.Visibility = Visibility.Visible;
     }
-}
 
-public class StormDarkColorTable : System.Windows.Forms.ProfessionalColorTable
-{
-    private readonly System.Drawing.Color _accent;
-    public StormDarkColorTable(System.Drawing.Color accent) => _accent = accent;
-    public override System.Drawing.Color ToolStripDropDownBackground => System.Drawing.Color.FromArgb(20, 16, 38);
-    public override System.Drawing.Color MenuBorder => _accent;
-    public override System.Drawing.Color MenuItemBorder => System.Drawing.Color.Transparent;
-    public override System.Drawing.Color MenuItemSelected => System.Drawing.Color.FromArgb(46, 38, 82);
-    public override System.Drawing.Color MenuItemSelectedGradientBegin => System.Drawing.Color.FromArgb(46, 38, 82);
-    public override System.Drawing.Color MenuItemSelectedGradientEnd => System.Drawing.Color.FromArgb(46, 38, 82);
-    public override System.Drawing.Color ImageMarginGradientBegin => System.Drawing.Color.FromArgb(20, 16, 38);
-    public override System.Drawing.Color ImageMarginGradientMiddle => System.Drawing.Color.FromArgb(20, 16, 38);
-    public override System.Drawing.Color ImageMarginGradientEnd => System.Drawing.Color.FromArgb(20, 16, 38);
-    public override System.Drawing.Color SeparatorDark => System.Drawing.Color.FromArgb(50, 45, 80);
-    public override System.Drawing.Color SeparatorLight => System.Drawing.Color.Transparent;
+    private void showAboutInternal()
+    {
+        ShowMessageModal(
+            LocalizationManager.Get("AboutTitle"),
+            LocalizationManager.Get("AboutMsg"));
+    }
+
+    private void ShowAboutModal() => showAboutInternal();
+
+    private void BtnAbout_Click(object sender, RoutedEventArgs e) => ShowAboutModal();
+
+    private void BtnModalOk_Click(object sender, RoutedEventArgs e)
+    {
+        OverlayMessage.Visibility = Visibility.Collapsed;
+    }
+
+    private Task<(DuplicateChoice Choice, bool ApplyToAll)> PromptDuplicateAsync(string fileName)
+    {
+        _dupTcs = new TaskCompletionSource<(DuplicateChoice, bool)>();
+        TxtDupTitle.Text = LocalizationManager.Get("DuplicateTitle");
+        TxtDupMessage.Text = LocalizationManager.Get("DuplicateMsg") + " (" + fileName + ")";
+        ChkDupApplyAll.Content = LocalizationManager.Get("ChkApplyToAllDuplicates");
+        ChkDupApplyAll.IsChecked = false;
+        BtnDupOverwrite.Content = LocalizationManager.Get("BtnReprocess");
+        BtnDupSkip.Content = LocalizationManager.Get("BtnSkip");
+        BtnDupCancel.Content = "Cancel";
+        OverlayDuplicate.Visibility = Visibility.Visible;
+        return _dupTcs.Task;
+    }
+
+    private void ResolveDuplicatePrompt(DuplicateChoice choice)
+    {
+        OverlayDuplicate.Visibility = Visibility.Collapsed;
+        bool applyAll = ChkDupApplyAll.IsChecked == true;
+        _dupTcs?.TrySetResult((choice, applyAll));
+    }
+
+    private void BtnDupOverwrite_Click(object sender, RoutedEventArgs e) => ResolveDuplicatePrompt(DuplicateChoice.Overwrite);
+    private void BtnDupSkip_Click(object sender, RoutedEventArgs e) => ResolveDuplicatePrompt(DuplicateChoice.Skip);
+    private void BtnDupCancel_Click(object sender, RoutedEventArgs e) => ResolveDuplicatePrompt(DuplicateChoice.Cancel);
+
+    // ==================== AUTO-UPDATER (Rule 9) ====================
+
+    private async void BtnCheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesAsync(silent: false);
+    }
+
+    private async Task CheckForUpdatesAsync(bool silent)
+    {
+        await UpdateManager.CheckForUpdatesAsync(silent);
+    }
+
+    public void ShowUpdateModal(UpdateInfo info)
+    {
+        _pendingUpdate = info;
+        TxtUpdateHeader.Text = LocalizationManager.Get("UpdateAvailableTitle");
+        TxtUpdateSub.Text = $"{info.Title} ({LocalizationManager.Get("UpdateCurrentVer")}: {UpdateManager.CurrentVersionString} -> {info.VersionString})";
+        TxtUpdateNotes.Text = string.IsNullOrWhiteSpace(info.Changelog) ? $"STORM DS DECRYPTOR {info.VersionString}" : info.Changelog;
+        BtnUpdateConfirm.Content = LocalizationManager.Get("UpdateNow"); // Concise "Обновить" / "Update" (Rule 9)
+        BtnUpdateLater.Content = LocalizationManager.Get("UpdateLater");
+        PbUpdateDownload.Visibility = Visibility.Collapsed;
+        BtnUpdateConfirm.IsEnabled = true;
+        OverlayUpdate.Visibility = Visibility.Visible;
+    }
+
+    private void BtnUpdateLater_Click(object sender, RoutedEventArgs e)
+    {
+        OverlayUpdate.Visibility = Visibility.Collapsed;
+    }
+
+    private async void BtnUpdateConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate == null) return;
+        BtnUpdateConfirm.IsEnabled = false;
+        PbUpdateDownload.Visibility = Visibility.Visible;
+        PbUpdateDownload.Value = 0;
+
+        var progress = new Progress<double>(p =>
+        {
+            DispatcherQueue.TryEnqueue(() => PbUpdateDownload.Value = p);
+        });
+
+        bool ok = await UpdateManager.DownloadAndInstallUpdateAsync(_pendingUpdate, progress);
+        if (ok)
+        {
+            ExitApplicationFromTray();
+        }
+        else
+        {
+            BtnUpdateConfirm.IsEnabled = true;
+            PbUpdateDownload.Visibility = Visibility.Collapsed;
+        }
+    }
 }

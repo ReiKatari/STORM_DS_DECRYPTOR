@@ -3,9 +3,8 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Windows;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
 public static class UpdateManager
 {
@@ -14,7 +13,7 @@ public static class UpdateManager
         get
         {
             var v = typeof(UpdateManager).Assembly.GetName().Version;
-            return v != null ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(1, 2, 1);
+            return v != null ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(1, 3, 0);
         }
     }
 
@@ -26,33 +25,32 @@ public static class UpdateManager
             return $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
-    public const string GitHubRepo = "ReiKatari/STORM_DS_DESCRYPTOR";
 
-    public static async Task CheckForUpdatesAsync(Window? owner, bool silent = true)
+    public const string GitHubRepo = "ReiKatari/STORM_DS_DECRYPTOR";
+    public const string GitHubRepoFallback = "ReiKatari/STORM_DS_DESCRYPTOR";
+
+    public static async Task CheckForUpdatesAsync(bool silent = true)
     {
         try
         {
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(8);
-            client.DefaultRequestHeaders.Add("User-Agent", "STORM-DSi-Decryptor");
+            client.DefaultRequestHeaders.Add("User-Agent", "STORM-DS-Decryptor");
             client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
 
-            string apiUrl = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
-            HttpResponseMessage response = await client.GetAsync(apiUrl);
-
+            HttpResponseMessage response = await client.GetAsync($"https://api.github.com/repos/{GitHubRepo}/releases/latest");
             if (!response.IsSuccessStatusCode)
             {
-                // Fallback to releases list if 'latest' is not yet indexed
-                string fallbackUrl = $"https://api.github.com/repos/{GitHubRepo}/releases";
-                response = await client.GetAsync(fallbackUrl);
+                response = await client.GetAsync($"https://api.github.com/repos/{GitHubRepoFallback}/releases/latest");
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                response = await client.GetAsync($"https://api.github.com/repos/{GitHubRepo}/releases");
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                if (!silent)
-                {
-                    ShowError(owner);
-                }
+                if (!silent) ShowError();
                 return;
             }
 
@@ -64,7 +62,7 @@ public static class UpdateManager
             {
                 if (doc.RootElement.GetArrayLength() == 0)
                 {
-                    if (!silent) ShowUpToDate(owner);
+                    if (!silent) ShowUpToDate();
                     return;
                 }
                 releaseEl = doc.RootElement[0];
@@ -81,7 +79,7 @@ public static class UpdateManager
 
             if (!TryParseVersion(tagName, out var remoteVersion))
             {
-                if (!silent) ShowUpToDate(owner);
+                if (!silent) ShowUpToDate();
                 return;
             }
 
@@ -91,12 +89,11 @@ public static class UpdateManager
                 {
                     Version = remoteVersion,
                     VersionString = CleanVersionString(tagName),
-                    Title = string.IsNullOrWhiteSpace(releaseName) ? $"STORM DSi DECRYPTOR {tagName}" : releaseName,
+                    Title = string.IsNullOrWhiteSpace(releaseName) ? $"STORM DS DECRYPTOR {tagName}" : releaseName,
                     Changelog = body,
                     ReleaseUrl = htmlUrl
                 };
 
-                // Find the best installer asset
                 if (releaseEl.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Array)
                 {
                     string bestUrl = "";
@@ -114,7 +111,7 @@ public static class UpdateManager
                             bestUrl = aUrl;
                             bestName = aName;
                             bestSize = aSize;
-                            break; // Highest priority
+                            break;
                         }
                         if (aName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(bestUrl))
                         {
@@ -135,31 +132,20 @@ public static class UpdateManager
                     info.SetupFileSize = bestSize;
                 }
 
-                // Show Update Dialog on UI Thread
-                Application.Current.Dispatcher.Invoke(() =>
+                MainWindow.Instance?.DispatcherQueue.TryEnqueue(() =>
                 {
-                    var dlg = new UpdateDialog(info)
-                    {
-                        Owner = owner ?? Application.Current.MainWindow
-                    };
-                    dlg.ShowDialog();
+                    MainWindow.Instance?.ShowUpdateModal(info);
                 });
             }
             else
             {
-                if (!silent)
-                {
-                    ShowUpToDate(owner);
-                }
+                if (!silent) ShowUpToDate();
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[UpdateManager Check Error]: {ex.Message}");
-            if (!silent)
-            {
-                ShowError(owner);
-            }
+            if (!silent) ShowError();
         }
     }
 
@@ -191,23 +177,79 @@ public static class UpdateManager
         return s;
     }
 
-    private static void ShowUpToDate(Window? owner)
+    private static void ShowUpToDate()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        MainWindow.Instance?.DispatcherQueue.TryEnqueue(() =>
         {
-            StormMessageBox.Show(owner ?? Application.Current.MainWindow,
-                LocalizationManager.Get("UpdateUpToDate") ?? "У вас установлена самая актуальная версия программы.",
-                LocalizationManager.Get("UpdateAvailableTitle") ?? "Обновление");
+            MainWindow.Instance?.ShowMessageModal(
+                LocalizationManager.Get("UpdateAvailableTitle"),
+                LocalizationManager.Get("UpdateUpToDate"));
         });
     }
 
-    private static void ShowError(Window? owner)
+    private static void ShowError()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        MainWindow.Instance?.DispatcherQueue.TryEnqueue(() =>
         {
-            StormMessageBox.Show(owner ?? Application.Current.MainWindow,
-                LocalizationManager.Get("UpdateCheckError") ?? "Не удалось проверить наличие обновлений. Проверьте подключение к сети.",
-                LocalizationManager.Get("UpdateAvailableTitle") ?? "Обновление");
+            MainWindow.Instance?.ShowMessageModal(
+                LocalizationManager.Get("UpdateAvailableTitle"),
+                LocalizationManager.Get("UpdateCheckError"));
         });
+    }
+
+    public static async Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo info, IProgress<double>? progress = null)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(info.SetupDownloadUrl))
+            {
+                if (!string.IsNullOrWhiteSpace(info.ReleaseUrl))
+                {
+                    Process.Start(new ProcessStartInfo(info.ReleaseUrl) { UseShellExecute = true });
+                    return true;
+                }
+                return false;
+            }
+
+            string tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "StormDsDecryptor_Update");
+            System.IO.Directory.CreateDirectory(tempDir);
+            string fileName = !string.IsNullOrWhiteSpace(info.SetupFileName) ? info.SetupFileName : $"STORM_DS_DECRYPTOR_{info.VersionString}_Setup.exe";
+            string destPath = System.IO.Path.Combine(tempDir, fileName);
+
+            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            client.DefaultRequestHeaders.Add("User-Agent", "STORM-DS-Decryptor");
+
+            using var resp = await client.GetAsync(info.SetupDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            resp.EnsureSuccessStatusCode();
+
+            long totalBytes = resp.Content.Headers.ContentLength ?? info.SetupFileSize;
+            await using var netStream = await resp.Content.ReadAsStreamAsync();
+            await using (var fs = new System.IO.FileStream(destPath, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.None, 65536, true))
+            {
+                byte[] buf = new byte[65536];
+                long readTotal = 0;
+                int read;
+                while ((read = await netStream.ReadAsync(buf)) > 0)
+                {
+                    await fs.WriteAsync(buf.AsMemory(0, read));
+                    readTotal += read;
+                    if (totalBytes > 0)
+                        progress?.Report(Math.Min(100.0, (readTotal * 100.0) / totalBytes));
+                }
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = destPath,
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Update Download Error]: {ex.Message}");
+            return false;
+        }
     }
 }

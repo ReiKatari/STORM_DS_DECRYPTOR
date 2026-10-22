@@ -1,6 +1,6 @@
 using System;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
 public class UpdateInfo
 {

@@ -1,208 +1,162 @@
 using System;
 using System.Collections.Generic;
-using System.Windows;
-using System.Windows.Media;
-using Color = System.Windows.Media.Color;
+using Microsoft.UI;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 
-namespace StormDsiDecryptor;
+namespace StormDsDecryptor;
 
-public class ThemeDefinition
-{
-    public string Name { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public Color Background { get; set; }
-    public Color CardBackground { get; set; }
-    public Color CardBorder { get; set; }
-    public Color Accent { get; set; }
-    public Color TextPrimary { get; set; }
-    public Color TextSecondary { get; set; }
-    public Color Success { get; set; }
-    public Color Warning { get; set; }
-}
+public record ThemePalette(
+    string Name,
+    string WindowBg,
+    string HeaderBg,
+    string CardBg,
+    string CardBorder,
+    string TextPrimary,
+    string TextSecondary,
+    bool IsLight = false);
 
-public record AccentDefinition(string Name, Color Color);
-public record FontDefinition(string DisplayName, string FontFamilyString);
+public record AccentInfo(string Name, string ColorHex, string GlowHex, string SoftHex);
+public record FontInfo(string Name, string FamilyName);
 
 public static class ThemeManager
 {
-    public static readonly List<ThemeDefinition> Themes = new()
+    public static event Action? ThemeChanged;
+
+    public static readonly List<ThemePalette> Themes = new()
     {
-        new() {
-            Name = "MIDNIGHT", DisplayName = "MIDNIGHT (Фиолетовая)",
-            Background = Color.FromRgb(0x0D, 0x0B, 0x18),
-            CardBackground = Color.FromRgb(0x17, 0x13, 0x2B),
-            CardBorder = Color.FromArgb(0x40, 0x8B, 0x5C, 0xF6),
-            Accent = Color.FromRgb(0x8B, 0x5C, 0xF6),
-            TextPrimary = Color.FromRgb(0xF8, 0xFA, 0xFC),
-            TextSecondary = Color.FromRgb(0xC0, 0x84, 0xFC),
-            Success = Color.FromRgb(0x10, 0xB9, 0x81),
-            Warning = Color.FromRgb(0xF5, 0x9E, 0x0B)
-        },
-        new() {
-            Name = "NIGHT", DisplayName = "NIGHT (Чёрная OLED)",
-            Background = Color.FromRgb(0x00, 0x00, 0x00),
-            CardBackground = Color.FromRgb(0x0A, 0x0A, 0x0E),
-            CardBorder = Color.FromArgb(0x35, 0x33, 0x33, 0x33),
-            Accent = Color.FromRgb(0x00, 0xF0, 0xFF),
-            TextPrimary = Color.FromRgb(0xFF, 0xFF, 0xFF),
-            TextSecondary = Color.FromRgb(0x8B, 0x94, 0x9E),
-            Success = Color.FromRgb(0x00, 0xE6, 0x76),
-            Warning = Color.FromRgb(0xFF, 0xB3, 0x00)
-        },
-        new() {
-            Name = "DARK", DisplayName = "DARK (Графитовая)",
-            Background = Color.FromRgb(0x11, 0x13, 0x18),
-            CardBackground = Color.FromRgb(0x18, 0x1B, 0x24),
-            CardBorder = Color.FromArgb(0x35, 0x3B, 0x82, 0xF6),
-            Accent = Color.FromRgb(0x3B, 0x82, 0xF6),
-            TextPrimary = Color.FromRgb(0xF1, 0xF5, 0xF9),
-            TextSecondary = Color.FromRgb(0x94, 0xA3, 0xB8),
-            Success = Color.FromRgb(0x10, 0xB9, 0x81),
-            Warning = Color.FromRgb(0xF5, 0x9E, 0x0B)
-        },
-        new() {
-            Name = "DAY", DisplayName = "DAY (Светлая)",
-            Background = Color.FromRgb(0xF8, 0xFA, 0xFC),
-            CardBackground = Color.FromRgb(0xFF, 0xFF, 0xFF),
-            CardBorder = Color.FromArgb(0x35, 0xCB, 0xD5, 0xE1),
-            Accent = Color.FromRgb(0x63, 0x66, 0xF1),
-            TextPrimary = Color.FromRgb(0x0F, 0x17, 0x2A),
-            TextSecondary = Color.FromRgb(0x64, 0x74, 0x8B),
-            Success = Color.FromRgb(0x05, 0x96, 0x69),
-            Warning = Color.FromRgb(0xD9, 0x77, 0x06)
-        },
-        new() {
-            Name = "FANTASY", DisplayName = "FANTASY (Астрал & Золото)",
-            Background = Color.FromRgb(0x0E, 0x13, 0x24),
-            CardBackground = Color.FromRgb(0x17, 0x1F, 0x38),
-            CardBorder = Color.FromArgb(0x40, 0xD4, 0xAF, 0x37),
-            Accent = Color.FromRgb(0xD4, 0xAF, 0x37),
-            TextPrimary = Color.FromRgb(0xFE, 0xF9, 0xC3),
-            TextSecondary = Color.FromRgb(0xFD, 0xE0, 0x47),
-            Success = Color.FromRgb(0x34, 0xD3, 0x99),
-            Warning = Color.FromRgb(0xF5, 0x9E, 0x0B)
-        },
-        new() {
-            Name = "CYBERPUNK", DisplayName = "CYBERPUNK 2077",
-            Background = Color.FromRgb(0x0B, 0x0A, 0x10),
-            CardBackground = Color.FromRgb(0x1A, 0x16, 0x26),
-            CardBorder = Color.FromArgb(0x40, 0xFC, 0xEE, 0x09),
-            Accent = Color.FromRgb(0xFC, 0xEE, 0x09),
-            TextPrimary = Color.FromRgb(0xFF, 0xFF, 0xFF),
-            TextSecondary = Color.FromRgb(0x00, 0xF0, 0xFF),
-            Success = Color.FromRgb(0x00, 0xF0, 0xFF),
-            Warning = Color.FromRgb(0xFF, 0x00, 0x3C)
-        },
-        new() {
-            Name = "WARHAMMER 40K", DisplayName = "WARHAMMER 40K (Когитатор)",
-            Background = Color.FromRgb(0x0C, 0x0A, 0x08),
-            CardBackground = Color.FromRgb(0x1A, 0x16, 0x12),
-            CardBorder = Color.FromArgb(0x40, 0xCA, 0x8A, 0x04),
-            Accent = Color.FromRgb(0xCA, 0x8A, 0x04),
-            TextPrimary = Color.FromRgb(0xFD, 0xFA, 0xF0),
-            TextSecondary = Color.FromRgb(0xA8, 0xA2, 0x9E),
-            Success = Color.FromRgb(0x22, 0xC5, 0x5E),
-            Warning = Color.FromRgb(0x99, 0x1B, 0x1B)
-        },
-        new() {
-            Name = "ELEMENTAL", DisplayName = "ELEMENTAL (Стихии)",
-            Background = Color.FromRgb(0x09, 0x13, 0x18),
-            CardBackground = Color.FromRgb(0x10, 0x20, 0x28),
-            CardBorder = Color.FromArgb(0x40, 0x0E, 0xA5, 0xE9),
-            Accent = Color.FromRgb(0x0E, 0xA5, 0xE9),
-            TextPrimary = Color.FromRgb(0xF0, 0xFD, 0xF4),
-            TextSecondary = Color.FromRgb(0x38, 0xBD, 0xF8),
-            Success = Color.FromRgb(0x10, 0xB9, 0x81),
-            Warning = Color.FromRgb(0xF9, 0x73, 0x16)
-        },
-        new() {
-            Name = "STORM", DisplayName = "STORM (Плазменный Шторм)",
-            Background = Color.FromRgb(0x07, 0x05, 0x10),
-            CardBackground = Color.FromRgb(0x14, 0x0E, 0x28),
-            CardBorder = Color.FromArgb(0x45, 0x8B, 0x5C, 0xF6),
-            Accent = Color.FromRgb(0x8B, 0x5C, 0xF6),
-            TextPrimary = Color.FromRgb(0xFF, 0xFF, 0xFF),
-            TextSecondary = Color.FromRgb(0xA7, 0x8B, 0xFA),
-            Success = Color.FromRgb(0x06, 0xB6, 0xD4),
-            Warning = Color.FromRgb(0xF4, 0x3F, 0x5E)
+        new("MIDNIGHT",   "#0E0A1A", "#141026", "#1A1432", "#31265A", "#F0F0F5", "#A098C0", false),
+        new("NIGHT",      "#050508", "#0A0A10", "#101018", "#242436", "#F2F2F7", "#8E8EA8", false),
+        new("DARK",       "#101216", "#161920", "#1D212A", "#2E3545", "#ECEFF4", "#9AA5B8", false),
+        new("DAY",        "#F3F5FA", "#FFFFFF", "#FFFFFF", "#CBD5E1", "#0F172A", "#334155", true),
+        new("FANTASY",    "#0D1026", "#131836", "#1A2148", "#32408F", "#EEF2FF", "#9AB0E8", false),
+        new("CYBERPUNK",  "#0A0812", "#120E20", "#1A132E", "#4A2068", "#FFF9C4", "#FF80AB", false),
+        new("SYNTHWAVE",  "#140824", "#1E0C36", "#281248", "#5E2496", "#FDE8FF", "#E088FF", false),
+        new("BLOOD MOON", "#140608", "#1F090D", "#2B0D13", "#5C1B26", "#FFEBF0", "#D88A98", false),
+        new("ARCTIC",     "#07141C", "#0B1E2A", "#10293A", "#1F5070", "#E8F8FF", "#88C4E0", false)
+    };
+
+    public static readonly AccentInfo[] Accents = new[]
+    {
+        new AccentInfo("Violet",  "#8B5CF6", "#A855F7", "#2A8B5CF6"),
+        new AccentInfo("Cyan",    "#00E5FF", "#38BDF8", "#2A00E5FF"),
+        new AccentInfo("Emerald", "#10B981", "#34D399", "#2A10B981"),
+        new AccentInfo("Crimson", "#F43F5E", "#FB7185", "#2AF43F5E"),
+        new AccentInfo("Amber",   "#F59E0B", "#FBBF24", "#2AF59E0B"),
+        new AccentInfo("Magenta", "#EC4899", "#F472B6", "#2AEC4899"),
+        new AccentInfo("Blue",    "#3B82F6", "#60A5FA", "#2A3B82F6"),
+        new AccentInfo("Orange",  "#F97316", "#FB923C", "#2AF97316"),
+        new AccentInfo("Lime",    "#84CC16", "#A3E635", "#2A84CC16"),
+        new AccentInfo("Teal",    "#14B8A6", "#2DD4BF", "#2A14B8A6"),
+        new AccentInfo("Indigo",  "#6366F1", "#818CF8", "#2A6366F1"),
+        new AccentInfo("Gold",    "#EAB308", "#FACC15", "#2AEAB308"),
+        new AccentInfo("Silver",  "#94A3B8", "#CBD5E1", "#2A94A3B8")
+    };
+
+    public static readonly FontInfo[] Fonts = new[]
+    {
+        new FontInfo("Inter Variable",   "Inter Variable, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Plus Jakarta Sans","Plus Jakarta Sans, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Geist Sans",       "Geist Sans, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Manrope",          "Manrope, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Outfit",           "Outfit, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Montserrat",       "Montserrat, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Rubik",            "Rubik, Segoe UI Variable Text, Segoe UI"),
+        new FontInfo("Orbitron",         "Orbitron, Segoe UI Variable Display, Segoe UI"),
+        new FontInfo("JetBrains Mono",   "JetBrains Mono, Cascadia Code, Consolas"),
+        new FontInfo("Cascadia Code",    "Cascadia Code, Consolas, Segoe UI")
+    };
+
+    public static ThemePalette CurrentPalette { get; private set; } = Themes[0];
+    public static AccentInfo CurrentAccent { get; private set; } = Accents[0];
+    public static FontInfo CurrentFont { get; private set; } = Fonts[0];
+
+    public static Color ParseColor(string hex)
+    {
+        hex = hex.Trim().TrimStart('#');
+        if (hex.Length == 6)
+        {
+            return Color.FromArgb(255,
+                Convert.ToByte(hex.Substring(0, 2), 16),
+                Convert.ToByte(hex.Substring(2, 2), 16),
+                Convert.ToByte(hex.Substring(4, 2), 16));
         }
-    };
+        if (hex.Length == 8)
+        {
+            return Color.FromArgb(
+                Convert.ToByte(hex.Substring(0, 2), 16),
+                Convert.ToByte(hex.Substring(2, 2), 16),
+                Convert.ToByte(hex.Substring(4, 2), 16),
+                Convert.ToByte(hex.Substring(6, 2), 16));
+        }
+        return Color.FromArgb(255, 139, 92, 246);
+    }
 
-    public static readonly AccentDefinition[] Accents = new AccentDefinition[]
+    public static SolidColorBrush BrushFromHex(string hex) => new(ParseColor(hex));
+
+    private static void SetBrush(ResourceDictionary res, string key, string hex)
     {
-        new("Violet (#8B5CF6)", Color.FromRgb(139, 92, 246)),
-        new("Cyan (#06B6D4)", Color.FromRgb(6, 182, 212)),
-        new("Electric Blue (#3B82F6)", Color.FromRgb(59, 130, 246)),
-        new("Royal Indigo (#6366F1)", Color.FromRgb(99, 102, 241)),
-        new("Teal Mint (#14B8A6)", Color.FromRgb(20, 184, 166)),
-        new("Emerald Green (#10B981)", Color.FromRgb(16, 185, 129)),
-        new("Neon Lime (#84CC16)", Color.FromRgb(132, 204, 22)),
-        new("Amber Gold (#F59E0B)", Color.FromRgb(245, 158, 11)),
-        new("Solar Orange (#F97316)", Color.FromRgb(249, 115, 22)),
-        new("Crimson Red (#EF4444)", Color.FromRgb(239, 68, 68)),
-        new("Rose Pink (#F43F5E)", Color.FromRgb(244, 63, 94)),
-        new("Magenta Fuchsia (#EC4899)", Color.FromRgb(236, 72, 153)),
-        new("Platinum Silver (#E2E8F0)", Color.FromRgb(226, 232, 240))
-    };
-
-    public static readonly FontDefinition[] Fonts = new FontDefinition[]
-    {
-        new("Inter Variable", "Inter Variable, Inter, Segoe UI, sans-serif"),
-        new("Plus Jakarta Sans", "Plus Jakarta Sans, Segoe UI, sans-serif"),
-        new("Geist Sans", "Geist Sans, Segoe UI, sans-serif"),
-        new("Manrope", "Manrope, Segoe UI, sans-serif"),
-        new("Outfit", "Outfit, Segoe UI, sans-serif"),
-        new("Montserrat", "Montserrat, Segoe UI, sans-serif"),
-        new("Rubik", "Rubik, Segoe UI, sans-serif"),
-        new("Orbitron", "Orbitron, Rajdhani, Segoe UI, sans-serif"),
-        new("JetBrains Mono", "JetBrains Mono, Consolas, monospace"),
-        new("Fira Code", "Fira Code, Cascadia Code, Consolas, monospace")
-    };
-
-    public static ThemeDefinition CurrentTheme { get; private set; } = Themes[0];
-    public static Color CurrentAccent { get; private set; } = Accents[0].Color;
-    public static string CurrentFont { get; private set; } = Fonts[0].FontFamilyString;
+        Color c = ParseColor(hex);
+        if (res.TryGetValue(key, out object? existing) && existing is SolidColorBrush sb)
+        {
+            sb.Color = c;
+        }
+        else
+        {
+            res[key] = new SolidColorBrush(c);
+        }
+    }
 
     public static void ApplyTheme(string themeName)
     {
-        var found = Themes.Find(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase)
-                                  || t.DisplayName.StartsWith(themeName, StringComparison.OrdinalIgnoreCase));
-        if (found != null)
-        {
-            CurrentTheme = found;
-            ApplyToResources(Application.Current.Resources, found, CurrentAccent);
-        }
+        var palette = Themes.Find(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
+        CurrentPalette = palette;
+        UpdateAppResources();
     }
 
     public static void ApplyAccent(int index)
     {
-        if (index >= 0 && index < Accents.Length)
-        {
-            CurrentAccent = Accents[index].Color;
-            ApplyToResources(Application.Current.Resources, CurrentTheme, CurrentAccent);
-        }
+        if (index < 0 || index >= Accents.Length) index = 0;
+        CurrentAccent = Accents[index];
+        UpdateAppResources();
     }
 
     public static void ApplyFont(int index)
     {
-        if (index >= 0 && index < Fonts.Length)
-        {
-            CurrentFont = Fonts[index].FontFamilyString;
-            Application.Current.Resources["StormFontFamily"] = new System.Windows.Media.FontFamily(CurrentFont);
-        }
+        if (index < 0 || index >= Fonts.Length) index = 0;
+        CurrentFont = Fonts[index];
+        UpdateAppResources();
     }
 
-    private static void ApplyToResources(ResourceDictionary dict, ThemeDefinition theme, Color accent)
+    public static void UpdateAppResources()
     {
-        dict["ThemeBg"] = new SolidColorBrush(theme.Background);
-        dict["ThemeCardBg"] = new SolidColorBrush(theme.CardBackground);
-        dict["ThemeCardBorder"] = new SolidColorBrush(Color.FromArgb(0x40, accent.R, accent.G, accent.B));
-        dict["ThemeAccent"] = new SolidColorBrush(accent);
-        dict["ThemeAccentGlow"] = new SolidColorBrush(Color.FromArgb(0x50, accent.R, accent.G, accent.B));
-        dict["ThemeAccentSoft"] = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
-        dict["ThemeTextPrimary"] = new SolidColorBrush(theme.TextPrimary);
-        dict["ThemeTextSecondary"] = new SolidColorBrush(theme.TextSecondary);
-        dict["ThemeSuccess"] = new SolidColorBrush(theme.Success);
-        dict["ThemeWarning"] = new SolidColorBrush(theme.Warning);
+        try
+        {
+            var res = Application.Current?.Resources;
+            if (res == null) return;
+
+            SetBrush(res, "BgPrimaryBrush", CurrentPalette.WindowBg);
+            SetBrush(res, "BgSecondaryBrush", CurrentPalette.HeaderBg);
+            SetBrush(res, "BgCardBrush", CurrentPalette.CardBg);
+            SetBrush(res, "BgElevatedBrush", CurrentPalette.IsLight ? "#E2E8F0" : "#241D42");
+            SetBrush(res, "BorderSubtleBrush", CurrentPalette.CardBorder);
+            SetBrush(res, "TextPrimaryBrush", CurrentPalette.TextPrimary);
+            SetBrush(res, "TextSecondaryBrush", CurrentPalette.TextSecondary);
+            SetBrush(res, "TextMutedBrush", CurrentPalette.IsLight ? "#64748B" : "#7A7298");
+
+            SetBrush(res, "AccentPrimaryBrush", CurrentAccent.ColorHex);
+            SetBrush(res, "AccentGlowBrush", CurrentAccent.GlowHex);
+            SetBrush(res, "AccentSoftBrush", CurrentAccent.SoftHex);
+
+            SetBrush(res, "ToolTipBgBrush", CurrentPalette.IsLight ? "#FFFFFF" : CurrentPalette.HeaderBg);
+            SetBrush(res, "ToolTipFgBrush", CurrentPalette.TextPrimary);
+            SetBrush(res, "ToolTipBorderBrush", CurrentAccent.ColorHex);
+
+            res["AppFontFamily"] = new FontFamily(CurrentFont.FamilyName);
+
+            ThemeChanged?.Invoke();
+        }
+        catch { }
     }
 }
