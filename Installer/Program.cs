@@ -76,10 +76,10 @@ namespace StormUniversal.Installer
 
     public sealed class InstallerForm : Form
     {
-        private const string AppDisplayName = "STORM DS DESCRYPTOR";
+        private const string AppDisplayName = "STORM DSI DECRYPTOR";
         private const string AppVersion = "1.1.8";
-        private const string AppFolderName = "STORM DS DESCRYPTOR";
-        private const string ExeName = "STORM DS DESCRYPTOR.exe";
+        private const string AppFolderName = "STORM DSI DECRYPTOR";
+        private const string ExeName = "STORM DSI DECRYPTOR.exe";
         private const string IcoName = "AppIcon.ico";
         private const string BatName = "Быстрая_Расшифровка_Игр.bat";
 
@@ -344,7 +344,7 @@ namespace StormUniversal.Installer
 
         public InstallerForm()
         {
-            try { SetCurrentProcessExplicitAppUserModelID("STORM.DS.DESCRYPTOR.INSTALLER"); } catch { }
+            try { SetCurrentProcessExplicitAppUserModelID("STORM.DSI.DECRYPTOR.INSTALLER"); } catch { }
             LoadEmbeddedIcon();
             InitializeComponent();
             DetectAndApplyDefaultLanguage();
@@ -1166,7 +1166,7 @@ namespace StormUniversal.Installer
         {
             try
             {
-                using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\STORM_DS_DESCRYPTOR");
+                using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\STORM_DSI_DECRYPTOR");
                 if (key != null)
                 {
                     key.SetValue("DisplayName", $"{AppDisplayName} {AppVersion}");

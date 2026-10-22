@@ -142,21 +142,30 @@ public partial class MainWindow : Window
     private void UpdateTrayMenu()
     {
         if (_notifyIcon == null) return;
+        var menuFont = System.Drawing.SystemFonts.MenuFont ?? new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular);
+        var boldMenuFont = new System.Drawing.Font(menuFont, System.Drawing.FontStyle.Bold);
+
         var menu = new System.Windows.Forms.ContextMenuStrip
         {
             BackColor = System.Drawing.Color.FromArgb(20, 16, 38),
             ForeColor = System.Drawing.Color.White,
             ShowImageMargin = false,
-            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Regular),
+            Font = menuFont,
             Renderer = new StormDarkMenuRenderer(System.Drawing.Color.FromArgb(139, 92, 246))
         };
 
         var itemShow = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayShow"), null, (s, e) => RestoreFromTray())
         {
-            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+            Font = boldMenuFont
         };
-        var itemAbout = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayAbout"), null, (s, e) => ShowAbout());
-        var itemExit = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayExit"), null, (s, e) => QuitApplication());
+        var itemAbout = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayAbout"), null, (s, e) => ShowAbout())
+        {
+            Font = menuFont
+        };
+        var itemExit = new System.Windows.Forms.ToolStripMenuItem(LocalizationManager.Get("TrayExit"), null, (s, e) => QuitApplication())
+        {
+            Font = menuFont
+        };
 
         menu.Items.Add(itemShow);
         menu.Items.Add(itemAbout);
