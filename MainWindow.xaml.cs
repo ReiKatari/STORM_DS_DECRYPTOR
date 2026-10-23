@@ -48,6 +48,13 @@ public sealed partial class MainWindow : Window
     private bool _isQueueTabActive = true;
     private bool _sortAscending = true;
     private string _currentSortField = "Name";
+    private int _statusFilterMode = 0; // 0 = All, 1 = Encrypted Only, 2 = Ready/Decrypted Only
+
+    // 1.4.0: Live DSi Animated Icon Timer, Inspected RomItem & NitroFS State
+    private DispatcherTimer? _animTimer;
+    private RomItem? _inspectedItem;
+    private byte[]? _pendingCustomIconPng;
+    private List<NitroFsEntry> _allNitroEntries = new();
 
     private UpdateInfo? _pendingUpdate;
     private TaskCompletionSource<(DuplicateChoice Choice, bool ApplyToAll)>? _dupTcs;
@@ -544,8 +551,30 @@ public sealed partial class MainWindow : Window
             _ = AddPathsAsync(App.FirstLaunchArgs);
         }
 
+        // Start 60fps-aligned DSi Animated Banner Timer (50ms tick)
+        _animTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _animTimer.Tick += AnimTimer_Tick;
+        _animTimer.Start();
+
         // Silent background update check
         _ = CheckForUpdatesAsync(silent: true);
+    }
+
+    private void AnimTimer_Tick(object? sender, object e)
+    {
+        if (_filteredGames.Count == 0) return;
+        long nowMs = Environment.TickCount64;
+        foreach (var item in _filteredGames)
+        {
+            if (item.HasAnimatedBanner)
+            {
+                item.AdvanceAnimationTick(nowMs);
+            }
+        }
+        if (OverlayInspector.Visibility == Visibility.Visible && _inspectedItem != null && _pendingCustomIconPng == null)
+        {
+            ImgInspectorBanner.Source = _inspectedItem.IconSource;
+        }
     }
 
     private void OnThemeChanged()
@@ -932,6 +961,11 @@ public sealed partial class MainWindow : Window
         string q = TxtSearch.Text?.Trim() ?? string.Empty;
         IEnumerable<RomItem> query = _allGames;
 
+        if (_statusFilterMode == 1)
+            query = query.Where(g => g.IsEncrypted);
+        else if (_statusFilterMode == 2)
+            query = query.Where(g => !g.IsEncrypted || g.IsCompleted);
+
         if (!string.IsNullOrEmpty(q))
         {
             query = query.Where(g =>
@@ -975,6 +1009,24 @@ public sealed partial class MainWindow : Window
     private void BtnSortFormat_Click(object sender, RoutedEventArgs e) => ToggleSort("Format");
     private void BtnSortSize_Click(object sender, RoutedEventArgs e) => ToggleSort("Size");
     private void BtnSortStatus_Click(object sender, RoutedEventArgs e) => ToggleSort("Status");
+
+    private void BtnFilterAll_Click(object sender, RoutedEventArgs e)
+    {
+        _statusFilterMode = 0;
+        RefreshFilteredGames();
+    }
+
+    private void BtnFilterEncrypted_Click(object sender, RoutedEventArgs e)
+    {
+        _statusFilterMode = _statusFilterMode == 1 ? 0 : 1;
+        RefreshFilteredGames();
+    }
+
+    private void BtnFilterReady_Click(object sender, RoutedEventArgs e)
+    {
+        _statusFilterMode = _statusFilterMode == 2 ? 0 : 2;
+        RefreshFilteredGames();
+    }
 
     // ==================== 3D HERO BUTTON HOVER & PRESS ANIMATIONS ====================
 
@@ -1404,22 +1456,60 @@ public sealed partial class MainWindow : Window
         catch { }
     }
 
-    // ==================== ROW ACTION BUTTONS & ROM INSPECTOR ====================
+    // ==================== ROW ACTION BUTTONS, 3-TAB ROM INSPECTOR, BANNER STUDIO & NITROFS EXPLORER ====================
+
+    private void SwitchInspectorTab(int tabIdx)
+    {
+        PanelInspOverview.Visibility = tabIdx == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PanelInspStudio.Visibility   = tabIdx == 1 ? Visibility.Visible : Visibility.Collapsed;
+        PanelInspNitroFs.Visibility  = tabIdx == 2 ? Visibility.Visible : Visibility.Collapsed;
+
+        var accBrush = (Brush)Application.Current.Resources["AccentPrimaryBrush"];
+        var bgSecBrush = (Brush)Application.Current.Resources["BgSecondaryBrush"];
+        var txtPriBrush = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+        var whiteBrush = new SolidColorBrush(Colors.White);
+
+        Button[] tabs = { BtnInspTabOverview, BtnInspTabStudio, BtnInspTabNitroFs };
+        for (int i = 0; i < tabs.Length; i++)
+        {
+            tabs[i].Background = i == tabIdx ? accBrush : bgSecBrush;
+            tabs[i].Foreground = i == tabIdx ? whiteBrush : txtPriBrush;
+        }
+    }
+
+    private void BtnInspTabOverview_Click(object sender, RoutedEventArgs e) => SwitchInspectorTab(0);
+    private void BtnInspTabStudio_Click(object sender, RoutedEventArgs e) => SwitchInspectorTab(1);
+    private void BtnInspTabNitroFs_Click(object sender, RoutedEventArgs e) => SwitchInspectorTab(2);
 
     private async void BtnInspectRom_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not RomItem item) return;
 
+        _inspectedItem = item;
+        _pendingCustomIconPng = null;
+        SwitchInspectorTab(0);
+
         ImgInspectorBanner.Source = item.IconSource ?? ImgHeaderLogo.Source;
         TxtInspectorTitle.Text = item.FileName;
         TxtInspectorSubtitle.Text = $"{item.FormatType} • {item.GameCode} ({item.RegionCode}) • {item.FileSizeFormatted}";
-        TxtInspectorDetails.Text = "Вычисление криптографических хэшей (CRC16 / CRC32 / MD5 / SHA-1 / SHA-256) и чтение заголовка TWL/NTR...";
+        int fCount = item.AnimFrames?.Count ?? 1;
+        TxtInspectorAnimBadge.Text = fCount > 1
+            ? $"Анимация DSi-баннера (0x1240): {fCount} кадров (живое воспроизведение)"
+            : "Стандартный баннер картриджа: 1 кадр (32×32 → 128×128)";
+
+        TxtInspectorDetails.Text = "Вычисление криптографических хэшей (CRC16 / CRC32 / MD5 / SHA-1 / SHA-256), чтение заголовка TWL/NTR и дерева NitroFS...";
         OverlayInspector.Visibility = Visibility.Visible;
 
-        var info = await Task.Run(() => DsiDecryptorEngine.InspectRomDetailed(item));
+        var (info, nitroEntries) = await Task.Run(() =>
+        {
+            var det = DsiDecryptorEngine.InspectRomDetailed(item);
+            var fsEntries = NitroFsExplorer.ParseRomFileSystem(item.FullPath);
+            return (det, fsEntries);
+        });
 
+        // Populate Tab 1: Overview & Hashes
         var sb = new StringBuilder();
-        sb.AppendLine($"=== STORM DS DECRYPTOR {UpdateManager.CurrentVersion} — ROM & BANNER INSPECTOR ===");
+        sb.AppendLine($"=== STORM DS DECRYPTOR {UpdateManager.CurrentVersionString} — ROM & BANNER INSPECTOR ===");
         sb.AppendLine($"Файл:               {info.FileName}");
         sb.AppendLine($"Полный путь:        {info.FullPath}");
         sb.AppendLine($"Размер:             {info.FileSizeBytes:N0} байт ({item.FileSizeFormatted})");
@@ -1431,17 +1521,18 @@ public sealed partial class MainWindow : Window
         sb.AppendLine($"TWL Title ID:       {info.TwlTitleId}");
         sb.AppendLine();
         sb.AppendLine("--- КАРТА СЕКЦИЙ ОБРАЗА (ARM9 / ARM7 / FNT / FAT / MODCRYPT) ---");
-        sb.AppendLine($"ARM9 Offset / Size: {info.Arm9Offset} ({info.Arm9Size})");
-        sb.AppendLine($"ARM7 Offset / Size: {info.Arm7Offset} ({info.Arm7Size})");
-        sb.AppendLine($"FNT Offset / Size:  {info.FntOffset} ({info.FntSize})");
-        sb.AppendLine($"FAT Offset / Size:  {info.FatOffset} ({info.FatSize})");
-        sb.AppendLine($"Banner Offset:      {info.BannerOffset} (Animated DSi Icon: {(info.HasAnimatedBanner ? "YES" : "NO")})");
-        sb.AppendLine($"Modcrypt Area 1:    {info.Modcrypt1Offset} ({info.Modcrypt1Size})");
-        sb.AppendLine($"Modcrypt Area 2:    {info.Modcrypt2Offset} ({info.Modcrypt2Size})");
+        sb.AppendLine($"ARM9 Offset / Size: 0x{info.Arm9Offset:X8} ({info.Arm9Size:N0} B)");
+        sb.AppendLine($"ARM7 Offset / Size: 0x{info.Arm7Offset:X8} ({info.Arm7Size:N0} B)");
+        sb.AppendLine($"FNT Offset / Size:  0x{info.FntOffset:X8} ({info.FntSize:N0} B)");
+        sb.AppendLine($"FAT Offset / Size:  0x{info.FatOffset:X8} ({info.FatSize:N0} B)");
+        sb.AppendLine($"Banner Offset:      0x{info.BannerOffset:X8} (Animated DSi Icon: {(info.HasAnimatedBanner ? $"YES, {fCount} frames" : "NO")})");
+        sb.AppendLine($"Modcrypt Area 1:    0x{info.Modcrypt1Offset:X8} ({info.Modcrypt1Size:N0} B)");
+        sb.AppendLine($"Modcrypt Area 2:    0x{info.Modcrypt2Offset:X8} ({info.Modcrypt2Size:N0} B)");
+        sb.AppendLine($"NitroFS Files:      {nitroEntries.Count} внутренних объектов (/sys + /data)");
         sb.AppendLine();
         sb.AppendLine("--- КОНТРОЛЬНЫЕ СУММЫ И ХЭШИ ---");
-        sb.AppendLine($"Header CRC16:       {info.HeaderCrc16}");
-        sb.AppendLine($"Secure Area CRC16:  {info.SecureAreaCrc16}");
+        sb.AppendLine($"Header CRC16:       0x{info.HeaderCrc16:X4} (Calc: 0x{info.CalculatedHeaderCrc16:X4})");
+        sb.AppendLine($"Secure Area CRC16:  0x{info.SecureAreaCrc16:X4}");
         sb.AppendLine($"CRC32:              {info.Crc32}");
         sb.AppendLine($"MD5:                {info.Md5}");
         sb.AppendLine($"SHA-1:              {info.Sha1}");
@@ -1458,6 +1549,241 @@ public sealed partial class MainWindow : Window
         }
 
         TxtInspectorDetails.Text = sb.ToString();
+
+        // Populate Tab 2: Banner & Header Studio
+        TxtEditHeaderTitle.Text = info.InternalHeaderTitle ?? string.Empty;
+        TxtEditGameCode.Text = info.GameCode ?? string.Empty;
+        TxtEditTitleEN.Text = info.Banner?.TitleEnglish ?? string.Empty;
+        TxtEditTitleJP.Text = info.Banner?.TitleJapanese ?? string.Empty;
+        TxtEditTitleFR.Text = info.Banner?.TitleFrench ?? string.Empty;
+        TxtEditTitleDE.Text = info.Banner?.TitleGerman ?? string.Empty;
+        TxtEditTitleIT.Text = info.Banner?.TitleItalian ?? string.Empty;
+        TxtEditTitleES.Text = info.Banner?.TitleSpanish ?? string.Empty;
+        TxtEditTitleZH.Text = info.Banner?.TitleChinese ?? string.Empty;
+        TxtEditTitleKO.Text = info.Banner?.TitleKorean ?? string.Empty;
+
+        // Populate Tab 3: NitroFS Explorer
+        _allNitroEntries = nitroEntries;
+        TxtNitroSearch.Text = string.Empty;
+        RefreshNitroFsList();
+    }
+
+    private void RefreshNitroFsList()
+    {
+        string q = TxtNitroSearch.Text?.Trim() ?? string.Empty;
+        var filtered = string.IsNullOrEmpty(q)
+            ? _allNitroEntries
+            : _allNitroEntries.Where(e =>
+                e.VirtualPath.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                e.FileTypeBadge.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        ListNitroFs.ItemsSource = filtered;
+        TxtNitroSummary.Text = $"{filtered.Count} / {_allNitroEntries.Count} файлов";
+        TxtInspTabNitroFs.Text = $"Проводник NitroFS ({_allNitroEntries.Count})";
+    }
+
+    private void TxtNitroSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RefreshNitroFsList();
+    }
+
+    private void BtnExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null) return;
+        try
+        {
+            string outDir = TxtOutputDir.Text;
+            if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+            string baseName = Path.GetFileNameWithoutExtension(_inspectedItem.FileName);
+            string pngPath = Path.Combine(outDir, $"{baseName}_Icon_128x128.png");
+            byte[] bytes = _pendingCustomIconPng ?? _inspectedItem.BannerPngBytes ?? NdsBannerParser.DefaultCartridgePng;
+            File.WriteAllBytes(pngPath, bytes);
+            TxtStatusFooter.Text = $"Иконка PNG сохранена: {pngPath}";
+            ShowMessageModal("Экспорт PNG завершён", $"Иконка картриджа (128×128) сохранена в:\n{pngPath}");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка экспорта PNG", ex.Message);
+        }
+    }
+
+    private void BtnExportGif_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null) return;
+        try
+        {
+            string outDir = TxtOutputDir.Text;
+            if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+            string baseName = Path.GetFileNameWithoutExtension(_inspectedItem.FileName);
+            string gifPath = Path.Combine(outDir, $"{baseName}_Animated_128x128.gif");
+
+            var frames = _inspectedItem.AnimFrames;
+            if (frames == null || frames.Count == 0)
+            {
+                var info = DsiDecryptorEngine.InspectRom(_inspectedItem.FullPath);
+                frames = info.Banner?.AnimFrames;
+            }
+
+            if (frames == null || frames.Count == 0)
+            {
+                ShowMessageModal("Экспорт GIF", "Не удалось извлечь кадры баннера из этого файла.");
+                return;
+            }
+
+            byte[] gifBytes = NdsBannerParser.ExportAnimatedGif(frames);
+            File.WriteAllBytes(gifPath, gifBytes);
+            TxtStatusFooter.Text = $"Анимированный GIF ({frames.Count} кадр.) сохранён: {gifPath}";
+            ShowMessageModal("Экспорт GIF89a завершён", $"Анимированная иконка ({frames.Count} кадр., 128×128) успешно сохранена в:\n{gifPath}");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка экспорта GIF", ex.Message);
+        }
+    }
+
+    private async void BtnImportCustomIcon_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileOpenPicker();
+            InitializeWithWindow.Initialize(picker, _hwnd);
+            picker.FileTypeFilter.Add(".png");
+            var file = await picker.PickSingleFileAsync();
+            if (file != null && File.Exists(file.Path))
+            {
+                byte[] rawPng = await File.ReadAllBytesAsync(file.Path);
+                if (NdsBannerParser.TryQuantizePngToNdsBanner(rawPng, out _, out _))
+                {
+                    _pendingCustomIconPng = rawPng;
+                    ImgInspectorBanner.Source = NdsBannerParser.FromPngBytes(rawPng);
+                    TxtStatusFooter.Text = $"Загружена новая иконка из {file.Name} (готова к записи в ROM).";
+                }
+                else
+                {
+                    ShowMessageModal("Формат PNG", "Пожалуйста, выберите стандартный 24/32-битный PNG-файл.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка импорта иконки", ex.Message);
+        }
+    }
+
+    private void BtnSaveBannerChanges_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null) return;
+        if (_inspectedItem.IsFromArchive || _inspectedItem.IsSpecialFormat)
+        {
+            ShowMessageModal("Студия баннера", "Для редактирования баннера сначала расшифруйте/извлеките образ из архива в .nds файл.");
+            return;
+        }
+
+        var titles = new Dictionary<string, string>
+        {
+            ["EN"] = TxtEditTitleEN.Text,
+            ["JP"] = TxtEditTitleJP.Text,
+            ["FR"] = TxtEditTitleFR.Text,
+            ["DE"] = TxtEditTitleDE.Text,
+            ["IT"] = TxtEditTitleIT.Text,
+            ["ES"] = TxtEditTitleES.Text,
+            ["ZH"] = TxtEditTitleZH.Text,
+            ["KO"] = TxtEditTitleKO.Text
+        };
+
+        var (ok, msg) = NdsBannerParser.SaveBannerAndHeaderChanges(
+            _inspectedItem.FullPath,
+            TxtEditHeaderTitle.Text,
+            TxtEditGameCode.Text,
+            titles,
+            _pendingCustomIconPng,
+            ChkBackup.IsChecked == true);
+
+        if (ok)
+        {
+            var refreshed = DsiDecryptorEngine.InspectFile(_inspectedItem.FullPath);
+            _inspectedItem.GameTitle = refreshed.GameTitle;
+            _inspectedItem.GameCode = refreshed.GameCode;
+            _inspectedItem.BannerPngBytes = refreshed.BannerPngBytes;
+            _inspectedItem.AnimFrames = refreshed.AnimFrames;
+            _inspectedItem.ResetAnimationCache();
+            _inspectedItem.IconSource = NdsBannerParser.FromPngBytes(refreshed.BannerPngBytes);
+            _pendingCustomIconPng = null;
+            ImgInspectorBanner.Source = _inspectedItem.IconSource;
+            RefreshFilteredGames();
+        }
+
+        ShowMessageModal("Студия баннера и заголовка", msg);
+    }
+
+    private void BtnExtractNitroSingle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null || sender is not Button btn || btn.Tag is not NitroFsEntry entry) return;
+        try
+        {
+            string outDir = Path.Combine(TxtOutputDir.Text, Path.GetFileNameWithoutExtension(_inspectedItem.FileName) + "_NitroFS");
+            Directory.CreateDirectory(outDir);
+            string outFile = Path.Combine(outDir, entry.FileName);
+            byte[] data = NitroFsExplorer.ExtractEntryBytes(_inspectedItem.FullPath, entry, tryDecompressBlz: false, out _);
+            File.WriteAllBytes(outFile, data);
+            TxtStatusFooter.Text = $"Извлечён файл NitroFS: {outFile} ({data.Length:N0} байт)";
+            ShowMessageModal("Файл NitroFS извлечён", $"Файл успешно сохранён:\n{outFile}\nРазмер: {data.Length:N0} байт");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка извлечения", ex.Message);
+        }
+    }
+
+    private void BtnDecompressBlzSingle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null || sender is not Button btn || btn.Tag is not NitroFsEntry entry) return;
+        try
+        {
+            string outDir = Path.Combine(TxtOutputDir.Text, Path.GetFileNameWithoutExtension(_inspectedItem.FileName) + "_NitroFS");
+            Directory.CreateDirectory(outDir);
+            byte[] data = NitroFsExplorer.ExtractEntryBytes(_inspectedItem.FullPath, entry, tryDecompressBlz: true, out bool wasDecomp);
+            string suffix = wasDecomp ? "_decompressed.bin" : "_raw.bin";
+            string outFile = Path.Combine(outDir, Path.GetFileNameWithoutExtension(entry.FileName) + suffix);
+            File.WriteAllBytes(outFile, data);
+            ShowMessageModal(
+                wasDecomp ? "BLZ Декомпрессия успешна" : "Извлечён без BLZ",
+                wasDecomp
+                    ? $"Секция успешно распакована алгоритмом Nintendo Backward LZ77:\n{outFile}\nИтоговый размер: {data.Length:N0} байт"
+                    : $"Секция не сжата BLZ (сохранена как есть):\n{outFile}\nРазмер: {data.Length:N0} байт");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка BLZ", ex.Message);
+        }
+    }
+
+    private async void BtnExtractAllNitroFs_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null || _allNitroEntries.Count == 0) return;
+        try
+        {
+            string outDir = Path.Combine(TxtOutputDir.Text, Path.GetFileNameWithoutExtension(_inspectedItem.FileName) + "_NitroFS");
+            Directory.CreateDirectory(outDir);
+            int count = await Task.Run(() => NitroFsExplorer.ExtractAllToDirectory(_inspectedItem.FullPath, _allNitroEntries, outDir));
+            ShowMessageModal("Распаковка NitroFS завершена", $"Извлечено файлов: {count}\nПапка назначения:\n{outDir}");
+        }
+        catch (Exception ex)
+        {
+            ShowMessageModal("Ошибка распаковки NitroFS", ex.Message);
+        }
+    }
+
+    private void BtnTrimInspectedRom_Click(object sender, RoutedEventArgs e)
+    {
+        if (_inspectedItem == null) return;
+        var (ok, saved, msg) = NitroFsExplorer.TrimRomFile(_inspectedItem.FullPath, ChkBackup.IsChecked == true);
+        if (ok && File.Exists(_inspectedItem.FullPath))
+        {
+            _inspectedItem.FileSize = new FileInfo(_inspectedItem.FullPath).Length;
+            TxtInspectorSubtitle.Text = $"{_inspectedItem.FormatType} • {_inspectedItem.GameCode} ({_inspectedItem.RegionCode}) • {_inspectedItem.FileSizeFormatted}";
+        }
+        ShowMessageModal("Безопасный триммер ROM", msg);
     }
 
     private void BtnCopyInspector_Click(object sender, RoutedEventArgs e)

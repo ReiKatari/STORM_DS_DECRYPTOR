@@ -797,6 +797,7 @@ public static class DsiDecryptorEngine
                     ArchivePath = path,
                     ArchiveEntryName = e.EntryName,
                     BannerIconPng = e.RomInfo.Banner?.IconPng,
+                    AnimFrames = e.RomInfo.Banner?.AnimFrames,
                     Status = e.RomInfo.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
                 };
             }
@@ -822,6 +823,7 @@ public static class DsiDecryptorEngine
                     ArchivePath = path,
                     ArchiveEntryName = e.EntryName,
                     BannerIconPng = e.RomInfo.Banner?.IconPng,
+                    AnimFrames = e.RomInfo.Banner?.AnimFrames,
                     Status = e.RomInfo.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
                 };
             }
@@ -852,6 +854,7 @@ public static class DsiDecryptorEngine
                     SpecialContentSize = sf.ContentSize,
                     TitleId = sf.TitleId,
                     BannerIconPng = sf.Banner?.IconPng,
+                    AnimFrames = sf.Banner?.AnimFrames,
                     Status = sf.IsEncrypted ? LocalizationManager.Get("StatusEncrypted") : LocalizationManager.Get("StatusDecrypted")
                 };
             }
@@ -869,6 +872,7 @@ public static class DsiDecryptorEngine
             IsEncrypted = info.IsEncrypted,
             NeedsCompatibilityPatch = info.NeedsCompatibilityPatch,
             BannerIconPng = info.Banner?.PngBytes,
+            AnimFrames = info.Banner?.AnimFrames,
             Status = info.IsEncrypted
                 ? LocalizationManager.Get("StatusEncrypted")
                 : (info.IsDsiRom ? LocalizationManager.Get("StatusDecrypted") : LocalizationManager.Get("StatusNotDsi"))
