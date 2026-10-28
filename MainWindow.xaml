@@ -6,7 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="using:StormDsDecryptor"
-    Title="STORM DS DECRYPTOR 1.4.0"
+    Title="STORM DS DECRYPTOR 1.5.0"
     mc:Ignorable="d">
 
     <Page x:Name="RootPage"
@@ -39,84 +39,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ==================== ROW 0: CUSTOM WINDOW TITLE BAR (Rule 11 & 13) ==================== -->
+        <!-- ==================== ROW 0: CUSTOM WINDOW TITLE BAR (Rule 11 & 13, Single Native WinUI 3 Caption Buttons) ==================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource BgSecondaryBrush}"
                 BorderBrush="{StaticResource BorderSubtleBrush}"
                 BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!-- Drag Region with High-Res Icon & App Title + Version (no 'v') -->
-                <Grid x:Name="AppTitleBarDragArea" Grid.Column="0" Background="Transparent" Padding="14,0,0,0">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
-                        <Image x:Name="ImgTitleBarIcon" Width="20" Height="20" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TxtWindowTitle"
-                                   Text="STORM DS DECRYPTOR 1.4.0"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontSize="12.5"
-                                   FontWeight="Bold"
-                                   CharacterSpacing="25"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                </Grid>
-
-                <!-- Custom Vector Window Caption Buttons (Minimize, Maximize/Restore, Close-to-Tray) -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="0,0,4,0" VerticalAlignment="Center">
-                    <Button x:Name="BtnWinMinimize"
-                            Click="BtnMinimize_Click"
-                            Width="42" Height="30"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            CornerRadius="6"
-                            Padding="0">
-                        <Path Data="M 0,5 L 11,5"
-                              Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.7"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              Width="11" Height="10"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                    </Button>
-                    <Button x:Name="BtnWinMaximize"
-                            Click="BtnMaximize_Click"
-                            Width="42" Height="30"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            CornerRadius="6"
-                            Padding="0">
-                        <Path x:Name="IconMaximizePath"
-                              Data="M 0.5,0.5 L 10.5,0.5 L 10.5,10.5 L 0.5,10.5 Z"
-                              Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.6"
-                              StrokeLineJoin="Round"
-                              Width="11" Height="11"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                    </Button>
-                    <Button x:Name="BtnWinClose"
-                            Click="BtnClose_Click"
-                            Width="42" Height="30"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            CornerRadius="6"
-                            Padding="0"
-                            PointerEntered="BtnWinClose_PointerEntered"
-                            PointerExited="BtnWinClose_PointerExited">
-                        <Path x:Name="IconClosePath"
-                              Data="M 0.5,0.5 L 10.5,10.5 M 10.5,0.5 L 0.5,10.5"
-                              Stroke="{StaticResource TextPrimaryBrush}"
-                              StrokeThickness="1.8"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              Width="11" Height="11"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                    </Button>
+            <!-- Drag Region with High-Res Icon & App Title + Version (no 'v'); native AppWindowTitleBar renders single Min/Max/Close set -->
+            <Grid x:Name="AppTitleBarDragArea" Background="Transparent" Padding="14,0,140,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                    <Image x:Name="ImgTitleBarIcon" Width="20" Height="20" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TxtWindowTitle"
+                               Text="STORM DS DECRYPTOR 1.5.0"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="12.5"
+                               FontWeight="Bold"
+                               CharacterSpacing="25"
+                               VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -1418,10 +1356,18 @@
                     <TextBlock x:Name="TxtUpdateSub" Text="" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource AccentPrimaryBrush}" />
                     <TextBox x:Name="TxtUpdateNotes" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="180" FontFamily="Cascadia Code, Consolas" FontSize="12" Padding="12" CornerRadius="10" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" />
                     <ProgressBar x:Name="PbUpdateDownload" Visibility="Collapsed" Value="0" Maximum="100" Height="8" CornerRadius="4" Foreground="{StaticResource AccentPrimaryBrush}" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-                        <Button x:Name="BtnUpdateLater" Click="BtnUpdateLater_Click" Height="38" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Позже" />
-                        <Button x:Name="BtnUpdateConfirm" Click="BtnUpdateConfirm_Click" Height="38" Padding="22,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="ExtraBold" Content="Обновить" />
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnUpdateMirror" Grid.Column="0" Click="BtnUpdateMirror_Click" Height="38" Padding="14,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="#38BDF8" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="STORM GAMES WORLD" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                            <Button x:Name="BtnUpdateLater" Click="BtnUpdateLater_Click" Height="38" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="Позже" />
+                            <Button x:Name="BtnUpdateConfirm" Click="BtnUpdateConfirm_Click" Height="38" Padding="22,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="ExtraBold" Content="Обновить" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
@@ -1465,7 +1411,15 @@
                         <TextBlock x:Name="TxtModalTitle" Text="STORM DS DECRYPTOR" FontSize="18" FontWeight="ExtraBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock x:Name="TxtModalMessage" Text="" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" LineHeight="21" />
-                    <Button x:Name="BtnModalOk" Click="BtnModalOk_Click" HorizontalAlignment="Right" Height="36" Padding="24,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="ОК" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnModalMirror" Grid.Column="0" Click="BtnUpdateMirror_Click" Visibility="Collapsed" Height="36" Padding="14,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="#38BDF8" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="STORM GAMES WORLD" />
+                        <Button x:Name="BtnModalOk" Grid.Column="2" Click="BtnModalOk_Click" HorizontalAlignment="Right" Height="36" Padding="24,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="ОК" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>

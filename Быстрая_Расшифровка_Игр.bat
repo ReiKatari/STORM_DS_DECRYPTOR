@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul
-title STORM DS DECRYPTOR 1.4.0 - Быстрая Расшифровка Игр
+title STORM DS DECRYPTOR 1.5.0 - Быстрая Расшифровка Игр
 setlocal enabledelayedexpansion
 
 cd /d "%~dp0"
 
 if "%~1"=="" (
     echo ============================================================
-    echo   STORM DS DECRYPTOR 1.4.0 ^(STORM TEAM^)
+    echo   STORM DS DECRYPTOR 1.5.0 ^(STORM TEAM^)
     echo ============================================================
     echo.
     echo Перетащите файлы .nds, .dsi, .srl, .app, .cia, .tad, .zip, .7z, .rar
@@ -21,7 +21,7 @@ if "%~1"=="" (
 )
 
 echo ============================================================
-echo   STORM DS DECRYPTOR 1.4.0 ^(STORM TEAM^)
+echo   STORM DS DECRYPTOR 1.5.0 ^(STORM TEAM^)
 echo   Многопоточная расшифровка образов Nintendo DS / DSi / DSiWare
 echo ============================================================
 echo.

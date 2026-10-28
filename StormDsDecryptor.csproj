@@ -7,9 +7,9 @@
     <RootNamespace>StormDsiDecryptor</RootNamespace>
     <AssemblyName>STORM DS DECRYPTOR</AssemblyName>
     <AssemblyTitle>STORM DS DECRYPTOR</AssemblyTitle>
-    <Version>1.4.0</Version>
-    <AssemblyVersion>1.4.0.0</AssemblyVersion>
-    <FileVersion>1.4.0.0</FileVersion>
+    <Version>1.5.0</Version>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
+    <FileVersion>1.5.0.0</FileVersion>
     <Authors>STORM TEAM</Authors>
     <Company>STORM TEAM</Company>
     <Product>STORM DS DECRYPTOR</Product>

@@ -147,8 +147,8 @@ public sealed partial class MainWindow : Window
         WindowId wndId = Win32Interop.GetWindowIdFromWindow(_hwnd);
         _appWindow = AppWindow.GetFromWindowId(wndId);
 
-        Title = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersion}";
-        TxtWindowTitle.Text = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersion}";
+        Title = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersionString}";
+        TxtWindowTitle.Text = $"STORM DS DECRYPTOR {UpdateManager.CurrentVersionString}";
 
         // Hide system title bar and extend content into title bar
         ExtendsContentIntoTitleBar = true;
@@ -180,6 +180,7 @@ public sealed partial class MainWindow : Window
                 presenter.IsMaximizable = true;
                 presenter.IsMinimizable = true;
             }
+            UpdateNativeTitleBarColors();
         }
 
         // Load high-res app icons everywhere (Rule 13)
@@ -737,9 +738,7 @@ public sealed partial class MainWindow : Window
             TxtStatusFooter.Text = G("DragDropHint");
 
         // Styled Tooltips on ALL controls (Rule 14)
-        ToolTipService.SetToolTip(BtnWinMinimize, G("ToolTipMinimize"));
-        ToolTipService.SetToolTip(BtnWinMaximize, G("ToolTipMaximize"));
-        ToolTipService.SetToolTip(BtnWinClose, G("ToolTipClose"));
+        // Native WinUI 3 caption buttons handle Min/Max/Close tooltips automatically
         ToolTipService.SetToolTip(CmbTheme, G("ToolTipTheme"));
         ToolTipService.SetToolTip(CmbAccent, G("ToolTipAccent"));
         ToolTipService.SetToolTip(CmbFont, G("ToolTipFont"));
@@ -792,39 +791,29 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+    private void UpdateNativeTitleBarColors()
     {
-        if (_appWindow?.Presenter is OverlappedPresenter p)
-            p.Minimize();
-    }
-
-    private void BtnMaximize_Click(object sender, RoutedEventArgs e)
-    {
-        if (_appWindow?.Presenter is OverlappedPresenter p)
+        try
         {
-            if (p.State == OverlappedPresenterState.Maximized)
-                p.Restore();
-            else
-                p.Maximize();
+            if (_appWindow != null && AppWindowTitleBar.IsCustomizationSupported())
+            {
+                var tb = _appWindow.TitleBar;
+                tb.ButtonBackgroundColor = Colors.Transparent;
+                tb.ButtonInactiveBackgroundColor = Colors.Transparent;
+                bool isLight = string.Equals(CmbTheme?.SelectedItem as string, "DAY", StringComparison.OrdinalIgnoreCase);
+                var fg = isLight ? Windows.UI.Color.FromArgb(255, 15, 23, 42) : Colors.White;
+                var fgInactive = isLight ? Windows.UI.Color.FromArgb(160, 71, 85, 105) : Windows.UI.Color.FromArgb(160, 203, 213, 225);
+                var hoverBg = isLight ? Windows.UI.Color.FromArgb(28, 15, 23, 42) : Windows.UI.Color.FromArgb(36, 255, 255, 255);
+                var pressedBg = isLight ? Windows.UI.Color.FromArgb(48, 15, 23, 42) : Windows.UI.Color.FromArgb(56, 255, 255, 255);
+                tb.ButtonForegroundColor = fg;
+                tb.ButtonInactiveForegroundColor = fgInactive;
+                tb.ButtonHoverForegroundColor = fg;
+                tb.ButtonHoverBackgroundColor = hoverBg;
+                tb.ButtonPressedForegroundColor = fg;
+                tb.ButtonPressedBackgroundColor = pressedBg;
+            }
         }
-    }
-
-    private void BtnClose_Click(object sender, RoutedEventArgs e)
-    {
-        // Close-to-Tray (Rule 1)
-        ShowWindow(_hwnd, 0 /* SW_HIDE */);
-    }
-
-    private void BtnWinClose_PointerEntered(object sender, PointerRoutedEventArgs e)
-    {
-        BtnWinClose.Background = ThemeManager.BrushFromHex("#E11D48");
-        IconClosePath.Stroke = new SolidColorBrush(Colors.White);
-    }
-
-    private void BtnWinClose_PointerExited(object sender, PointerRoutedEventArgs e)
-    {
-        BtnWinClose.Background = new SolidColorBrush(Colors.Transparent);
-        IconClosePath.Stroke = (Brush)Application.Current.Resources["TextPrimaryBrush"];
+        catch { }
     }
 
     public void RestoreFromTray()
@@ -843,6 +832,7 @@ public sealed partial class MainWindow : Window
         {
             if (_trayService != null) { _trayService.IsQuittingFromTray = true; _trayService.Dispose(); }
             Application.Current.Exit();
+            Environment.Exit(0);
         });
     }
 
@@ -852,6 +842,7 @@ public sealed partial class MainWindow : Window
     {
         if (!_isLoaded || CmbTheme.SelectedItem is not string themeName) return;
         ThemeManager.ApplyTheme(themeName);
+        UpdateNativeTitleBarColors();
         SaveCurrentSettings();
     }
 
@@ -1930,11 +1921,12 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    public void ShowMessageModal(string title, string message)
+    public void ShowMessageModal(string title, string message, bool showMirrorLink = false)
     {
         TxtModalTitle.Text = title;
         TxtModalMessage.Text = message;
         BtnModalOk.Content = "OK";
+        BtnModalMirror.Visibility = showMirrorLink ? Visibility.Visible : Visibility.Collapsed;
         OverlayMessage.Visibility = Visibility.Visible;
     }
 
@@ -1942,7 +1934,8 @@ public sealed partial class MainWindow : Window
     {
         ShowMessageModal(
             LocalizationManager.Get("AboutTitle"),
-            LocalizationManager.Get("AboutMsg"));
+            LocalizationManager.Get("AboutMsg"),
+            showMirrorLink: true);
     }
 
     private void ShowAboutModal() => showAboutInternal();
@@ -1995,13 +1988,24 @@ public sealed partial class MainWindow : Window
     {
         _pendingUpdate = info;
         TxtUpdateHeader.Text = LocalizationManager.Get("UpdateAvailableTitle");
-        TxtUpdateSub.Text = $"{info.Title} ({LocalizationManager.Get("UpdateCurrentVer")}: {UpdateManager.CurrentVersionString} -> {info.VersionString})";
+        string srcLabel = !string.IsNullOrWhiteSpace(info.SourceName) ? $" • {info.SourceName}" : "";
+        TxtUpdateSub.Text = $"{info.Title} ({LocalizationManager.Get("UpdateCurrentVer")} {UpdateManager.CurrentVersionString} → {info.VersionString}{srcLabel})";
         TxtUpdateNotes.Text = string.IsNullOrWhiteSpace(info.Changelog) ? $"STORM DS DECRYPTOR {info.VersionString}" : info.Changelog;
         BtnUpdateConfirm.Content = LocalizationManager.Get("UpdateNow"); // Concise "Обновить" / "Update" (Rule 9)
         BtnUpdateLater.Content = LocalizationManager.Get("UpdateLater");
         PbUpdateDownload.Visibility = Visibility.Collapsed;
         BtnUpdateConfirm.IsEnabled = true;
         OverlayUpdate.Visibility = Visibility.Visible;
+    }
+
+    private void BtnUpdateMirror_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string url = _pendingUpdate?.MirrorWebUrl ?? UpdateManager.MirrorWebUrl;
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch { }
     }
 
     private void BtnUpdateLater_Click(object sender, RoutedEventArgs e)

@@ -77,7 +77,7 @@ namespace StormUniversal.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM DS DECRYPTOR";
-        private const string AppVersion = "1.4.0";
+        private const string AppVersion = "1.5.0";
         private const string AppFolderName = "STORM DS DECRYPTOR";
         private const string ExeName = "STORM DS DECRYPTOR.exe";
         private const string IcoName = "AppIcon.ico";
@@ -956,15 +956,14 @@ namespace StormUniversal.Installer
                 progressBar.Value = 10;
                 await Task.Delay(120);
 
-                foreach (var pName in new[] { "STORM DS DECRYPTOR", "STORM DSI DECRYPTOR", "STORM DSi Decryptor" })
+                int selfPid = Process.GetCurrentProcess().Id;
+                foreach (var pName in new[] { "STORM DS DECRYPTOR", "StormDsDecryptor", "STORM DSI DECRYPTOR", "STORM DSi Decryptor" })
                 foreach (var p in Process.GetProcessesByName(pName))
                 {
-                    try { p.Kill(); p.WaitForExit(1500); } catch { }
+                    if (p.Id == selfPid) continue;
+                    try { p.Kill(true); p.WaitForExit(3000); } catch { }
                 }
-                foreach (var p in Process.GetProcessesByName("STORM DSi Decryptor"))
-                {
-                    try { p.Kill(); p.WaitForExit(1500); } catch { }
-                }
+                await Task.Delay(350);
 
                 string targetExe = Path.Combine(targetDir, ExeName);
                 string targetIco = Path.Combine(targetDir, IcoName);
@@ -1015,7 +1014,25 @@ namespace StormUniversal.Installer
                                     }
                                     string? parent = Path.GetDirectoryName(destPath);
                                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-                                    entry.ExtractToFile(destPath, true);
+                                    for (int attempt = 0; attempt < 5; attempt++)
+                                    {
+                                        try
+                                        {
+                                            entry.ExtractToFile(destPath, true);
+                                            break;
+                                        }
+                                        catch (IOException) when (attempt < 4)
+                                        {
+                                            try
+                                            {
+                                                string oldBackup = destPath + ".old_storm";
+                                                if (File.Exists(oldBackup)) File.Delete(oldBackup);
+                                                if (File.Exists(destPath)) File.Move(destPath, oldBackup);
+                                            }
+                                            catch { }
+                                            System.Threading.Thread.Sleep(250);
+                                        }
+                                    }
                                     UnblockFile(destPath);
 
                                     int pct = 40 + (int)((double)done / total * 45);
