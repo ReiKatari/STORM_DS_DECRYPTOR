@@ -1185,11 +1185,11 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Spacing="4">
-                                            <TextBlock Text="Внутреннее имя заголовка (ASCII, до 12 симв.):" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock x:Name="LblInspHeaderTitle" Text="Внутреннее имя заголовка (ASCII, до 12 симв.):" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
                                             <TextBox x:Name="TxtEditHeaderTitle" MaxLength="12" Height="34" Padding="10,4" CornerRadius="6" Background="{StaticResource BgCardBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" FontFamily="Cascadia Code, Consolas" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Spacing="4">
-                                            <TextBlock Text="Код игры (4 симв.):" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock x:Name="LblInspGameCode" Text="Код игры (4 симв.):" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" />
                                             <TextBox x:Name="TxtEditGameCode" MaxLength="4" Height="34" Padding="10,4" CornerRadius="6" Background="{StaticResource BgCardBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" FontFamily="Cascadia Code, Consolas" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Bottom">
@@ -1198,7 +1198,7 @@
                                                     <Viewbox Width="14" Height="14" VerticalAlignment="Center">
                                                         <Path Data="M 4,17 L 4,20 L 20,20 L 20,17 M 12,3 L 12,15 M 8,7 L 12,3 L 16,7" Stroke="#38BDF8" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeLineJoin="Round" />
                                                     </Viewbox>
-                                                    <TextBlock Text="Заменить иконку из PNG..." Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="TxtBtnImportIcon" Text="Заменить иконку из PNG..." Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -1258,7 +1258,7 @@
                                             <Viewbox Width="15" Height="15" VerticalAlignment="Center">
                                                 <Path Data="M 5,12 L 10,17 L 19,7" Stroke="#FFFFFF" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeLineJoin="Round" />
                                             </Viewbox>
-                                            <TextBlock Text="Сохранить баннер и заголовок в ROM (пересчёт CRC16)" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="TxtBtnSaveBanner" Text="Сохранить баннер и заголовок в ROM (пересчёт CRC16)" Foreground="#FFFFFF" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -1328,13 +1328,13 @@
                                 <Viewbox Width="15" Height="15" VerticalAlignment="Center">
                                     <Path Data="M 6,6 C 6,7.66 4.66,9 3,9 C 1.34,9 0,7.66 0,6 C 0,4.34 1.34,3 3,3 C 4.66,3 6,4.34 6,6 Z M 6,18 C 6,19.66 4.66,21 3,21 C 1.34,21 0,19.66 0,18 C 0,16.34 1.34,15 3,15 C 4.66,15 6,16.34 6,18 Z M 20,4 L 8.12,15.88 M 14.47,14.48 L 20,20 M 8.12,8.12 L 12,12" Stroke="#34D399" StrokeThickness="2.0" StrokeStartLineCap="Round" />
                                 </Viewbox>
-                                <TextBlock Text="Безопасный триммер ROM" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="TxtBtnSafeTrim" Text="Безопасный триммер ROM" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
                             <Button x:Name="BtnCopyInspector" Click="BtnCopyInspector_Click" Height="36" Padding="16,0" CornerRadius="8" Background="{StaticResource AccentPrimaryBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold" Content="Копировать отчёт" />
-                            <Button Click="BtnCloseInspector_Click" Height="36" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="ОК (ESC)" />
+                            <Button x:Name="BtnCloseInspector" Click="BtnCloseInspector_Click" Height="36" Padding="18,0" CornerRadius="8" Background="{StaticResource BgSecondaryBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" FontWeight="SemiBold" Content="ОК (ESC)" />
                         </StackPanel>
                     </Grid>
                 </Grid>

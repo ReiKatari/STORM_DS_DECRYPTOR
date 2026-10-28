@@ -754,7 +754,7 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(BtnTabQueue, G("ToolTipTabQueue"));
         ToolTipService.SetToolTip(BtnTabHistory, G("ToolTipTabHistory"));
 
-        ToolTipService.SetToolTip(CmbMode, G("ToolTipModeCopy"));
+        ToolTipService.SetToolTip(CmbMode, CmbMode.SelectedIndex == 1 ? G("ToolTipModeInPlace") : G("ToolTipModeCopy"));
         ToolTipService.SetToolTip(ChkVerifyCrc, G("ToolTipVerifyCrc"));
         ToolTipService.SetToolTip(ChkCompatibility, G("ToolTipCompatPatch"));
         ToolTipService.SetToolTip(ChkBackup, G("ToolTipBackup"));
@@ -763,6 +763,28 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(BtnOpenOut, G("ToolTipOpenFolder"));
         ToolTipService.SetToolTip(BtnStartBatch, G("ToolTipDecryptAll"));
         ToolTipService.SetToolTip(BtnClearHistory, G("ToolTipClearHistory"));
+
+        ToolTipService.SetToolTip(BtnFilterAll, G("ToolTipFilterAll"));
+        ToolTipService.SetToolTip(BtnFilterEncrypted, G("ToolTipFilterEncrypted"));
+        ToolTipService.SetToolTip(BtnFilterReady, G("ToolTipFilterReady"));
+        ToolTipService.SetToolTip(BtnUpdateMirror, G("ToolTipOpenMirror"));
+        ToolTipService.SetToolTip(BtnModalMirror, G("ToolTipOpenMirror"));
+        ToolTipService.SetToolTip(BtnExportPng, G("ToolTipExportPng"));
+        ToolTipService.SetToolTip(BtnExportGif, G("ToolTipExportGif"));
+        ToolTipService.SetToolTip(BtnTrimInspectedRom, G("ToolTipSafeTrim"));
+
+        TxtInspTabOverview.Text = G("InspTabOverview");
+        TxtInspTabStudio.Text = G("InspTabStudio");
+        TxtInspTabNitroFs.Text = G("InspTabNitroFs");
+        LblInspHeaderTitle.Text = G("InspHeaderTitleLbl");
+        LblInspGameCode.Text = G("InspGameCodeLbl");
+        TxtBtnImportIcon.Text = G("InspImportIconBtn");
+        TxtBtnSaveBanner.Text = G("InspSaveBannerBtn");
+        TxtNitroSearch.PlaceholderText = G("InspNitroSearchHint");
+        BtnExtractAllNitroFs.Content = G("InspExtractAllBtn");
+        TxtBtnSafeTrim.Text = G("InspSafeTrimBtn");
+        BtnCopyInspector.Content = G("InspCopyReportBtn");
+        BtnCloseInspector.Content = G("InspCloseBtn");
     }
 
     private void UpdateTabHeaders()
